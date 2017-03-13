@@ -18,11 +18,12 @@ test:
 	./Bootest 10000 1 2 -check
 all: $(EXEC)
 
-# example: example.cpp
-# 	$(CXX) -o $@  $^ $(CFLAGS)
-
-main: main.cpp
+example: example.cpp
 	$(CXX) -o $@  $^ $(CFLAGS)
+
+test: test.cpp
+	$(CXX) -o $@  $^ $(CFLAGS)
+
 
 example_custom_hash: example_custom_hash.cpp
 	$(CXX) -o $@  $^ $(CFLAGS)
