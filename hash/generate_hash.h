@@ -69,32 +69,37 @@ int randomNumber(const int start, const int end){
 }
 
 // Task 1-6: The main algorithm
-class HASH{
+class hash_generator{
 
     public:
         //data is supposed a 2-d metrix [num_kemr, k]
-        HASH(kmer_t *data[], int n, int k)
-            :n_kmer(n), k_kmer(k)
+        hash_generator(kmer_t *data[], int n, int k)
+        :n_kmer(n), k_kmer(k)
         {
             nthreads = 4;
             gammaFactor = 2.0;
 
             kmer_data = data;
-            rab_hash_v = (u_int64_t *) calloc(n_kmer, sizeof(u_int64_t));
-            memset(rab_hash_v, 0, n_kmer * sizeof(u_int64_t));
+            KR_hash_val = (u_int64_t *) calloc(n_kmer, sizeof(u_int64_t));
+            memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t));
         
             printf("Generate hash function ... \n");
 
             build_minimalPerfectHash();
         }
-
+        u_int64_t get_hash_value(kmer_t * seq)
+        {
+            u_int64_t krv = generate_KRHash_val(seq, k_kmer, base, Prime);
+            u_int64_t res = bphf->lookup(krv);
+            return res;
+        }
     private:
-        // Task4: rabinHash
+        // Task4: generate_KRHash_val
         // data is a k-mer
         // k is the length of the k-mer
         // r is the base 
         // P is the prime
-        void build_rabinHash(){
+        void build_KRHash(){
             printf("Build rabin hash function ... \n");
             int R, P, r;
             u_int64_t v;
@@ -102,32 +107,34 @@ class HASH{
             R = max((u_int64_t)4, (u_int64_t)k_kmer*n_kmer*n_kmer);
             P = getPrime(R);
             // Find satisfied base and prime combination
+            memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t));
             while (1)
             {
                 r = randomNumber(0, P-1);     
                 // compute rabin hash for each kmer
                 for (int i = 0; i < n_kmer; i++)
                 { 
-                    v = rabinHash(kmer_data[i], k_kmer, r, P);
-                    if (rab_hash_v[i] == 0)
+                    v = generate_KRHash_val(kmer_data[i], k_kmer, r, P);
+                    // printf("generate hash code ... %d\n", v );
+                    if (KR_hash_val[i] == 0)
                     {
-                        rab_hash_v[i] = v;
+                        KR_hash_val[i] = v;
                     }
                     else // not injective
                     {
                         printf("Testing base=%d Prime=%d fails", r, P);
-                        memset(rab_hash_v, 0, n_kmer * sizeof(u_int64_t));
+                        memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t));
                         break;
                     }
                 }
-                printf("Testing base=%d Prime=%d succeeds !", r, P);
+                printf("Testing base=%d Prime=%d succeed!\n", r, P);
                 base = r;
                 Prime = P;
                 return;
             }
         }
 
-        kmer_t rabinHash(kmer_t *kmer, const int k, const int r, int P){
+        kmer_t generate_KRHash_val(kmer_t *kmer, const int k, const int r, int P){
             
             u_int64_t val = 0;
             // TODO: The wiki said the exponent of r is in the decresing order, which is different from our paper's.
@@ -135,7 +142,10 @@ class HASH{
             for (int i = 0; i < k; i++)
             {
                 val += kmer[i] * pow(r, k-i-1);
+                // printf("generate kmer ... %d\n", kmer[i]);
             }
+            // printf("generate mode ... %d\n", val );
+
             val = val % P;
 
             return u_int64_t(val);
@@ -143,33 +153,35 @@ class HASH{
 
         void build_minimalPerfectHash(){
 
-            build_rabinHash();
+            build_KRHash(); // compute KR_hash_val
 
-            std::sort(rab_hash_v, rab_hash_v+n_kmer);
+            std::sort(KR_hash_val, KR_hash_val+n_kmer);
             u_int64_t jj = 0;
             for (int ii = 1; ii < n_kmer; ii++) {
-                if (rab_hash_v[ii] != rab_hash_v[jj])
-                    rab_hash_v[++jj] = rab_hash_v[ii];
+                if (KR_hash_val[ii] != KR_hash_val[jj])
+                    KR_hash_val[++jj] = KR_hash_val[ii];
             }
-            printf("Found %lli duplicated items ...  \n", n_kmer-(jj + 1) );
+            printf("Found %lli duplicated items from KR_hash_val.  \n", n_kmer-(jj + 1) );
 
-            auto data_iterator = boomphf::range(static_cast<const u_int64_t*>(rab_hash_v), static_cast<const u_int64_t*>(rab_hash_v+n_kmer));
+            auto data_iterator = boomphf::range(static_cast<const u_int64_t*>(KR_hash_val), static_cast<const u_int64_t*>(KR_hash_val+n_kmer));
 
             bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, data_iterator, nthreads, gammaFactor);
 
-            printf("The minimal perfect hashing function is generated ... ");
+            printf("The minimal perfect hashing function is generated. \n");
+            printf("boophf  bits/elem : %f\n",(float) (bphf->totalBitSize())/n_kmer);
         }
 
             
-    private:
+    public:
         u_int64_t n_kmer; 
         u_int64_t k_kmer;
-        u_int64_t* rab_hash_v;
-        kmer_t **kmer_data;
+
+        u_int64_t *KR_hash_val = NULL;
+        kmer_t **kmer_data = NULL;
+        boophf_t *bphf = NULL;
+
         double gammaFactor; 
-        boophf_t * bphf;
         u_int64_t base;
         u_int64_t Prime;
-
         unsigned int nthreads;
 };
