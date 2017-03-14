@@ -4,7 +4,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "generatehash.h"
+#include "generate_hash.h"
 
 
 int main(){
@@ -22,8 +22,6 @@ int main(){
         k = randomNumber(0,10);
         printf("the random number is %d\n", k);
     }
-
-
 
     return 1;
 }
