@@ -118,4 +118,36 @@ void print_kmer( kmer_t mer, unsigned k,ostream& os) {
   }
 }
 
+/*
+ * Sets the i'th position of a mer of length k as indicated by character c
+ * c \in {A,C,G,T}
+ */
+void set_kmer( kmer_t& mer, unsigned k, unsigned i, char c ) {
+  //clear i-th position
+  kmer_t op = 3; //0...011
+  op = op << 2*(k - i - 1);  //11 in i'th spot, zeros elsewhere
+  op = ~op;      //00 in i'th spot, ones elsewhere
+  mer = mer & op; //i'th position of mer cleared.
+
+  //set i'th position
+  kmer_t val;
+  switch( c ) {
+    case 'A':
+      val = 0;
+      break;
+    case 'C':
+      val = 1;
+      break;
+    case 'G':
+      val = 2;
+      break;
+    case 'T':
+      val = 3;
+      break;
+  }
+
+  val = val << 2*(k - i - 1);  //correct bits in i'th spot, zeros elsewhere
+  mer = mer | val;
+}
+
 #endif

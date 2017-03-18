@@ -4,9 +4,8 @@
 #include <time.h>
 #include <string.h>
 #include <math.h>
-//#include <boost/math/special_functions/prime.hpp>
 #include "cpp-src/KBFUtil.hpp"
-#include "hash/generate_hash.h"
+#include "FDBG.cpp"
 
 using namespace std;
 
@@ -27,14 +26,18 @@ int main(int argc, char* argv[]) {
    unordered_set<kmer_t> kmers = getKmers(reads, k);
 
    cout << endl;
-   generate_hash f( kmers, kmers.size(), k );
-   for (unordered_set<kmer_t>::iterator it1 = kmers.begin();
-	it1 != kmers.end();
-	++it1) {
-     print_kmer( *it1, k, cout );
-     cout << ' ';
-     cout << f.get_hash_value( *it1 ) << endl;
-   }
    
+    // generate_hash f( kmers, kmers.size(), k );
+    // for (unordered_set<kmer_t>::iterator it1 = kmers.begin();
+    // 	it1 != kmers.end();
+    // 	++it1) {
+    //   print_kmer( *it1, k, cout );
+    //   cout << ' ';
+    //   cout << f( *it1 ) << endl;
+    // }
+
+   FDBG Graph( reads, kmers, kmers.size(), k, true );
+
+   return 0;
 }
 

@@ -1,3 +1,6 @@
+#ifndef GEN_HASH
+#define GEN_HASH
+
 #include "BooPHF.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,19 +49,29 @@ class generate_hash {
         generate_hash( unordered_set< kmer_t >& kmers , int n , int k ) {
 	  std::srand(std::time(NULL));
 	  
-            this->n_kmer = n; // number of k-mers
-            this->k_kmer = k; // length of each k-mer
+	  construct_hash_function( kmers,  n,  k );
+        }
 
-            //KR_hash_val = (u_int64_t *) calloc(n_kmer, sizeof(u_int64_t)); // space to store KRH image
+	generate_hash() {
+	  //default constructor
+	  std::srand(std::time(NULL));
+	}
+
+	void construct_hash_function( unordered_set< kmer_t >& kmers , int n , int k ) {
+	  this->n_kmer = n; // number of k-mers
+	  this->k_kmer = k; // length of each k-mer
+	  
+	  //KR_hash_val = (u_int64_t *) calloc(n_kmer, sizeof(u_int64_t)); // space to store KRH image
 
             //memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t)); // initialize to 0
         
-            printf("Generate hash function ... \n");
+	  printf("Generate hash function ... \n");
 
-            build_KRHash(kmers); // build KR hash function
-            build_minimalPerfectHash(); // build minimal perfect hash function
-        }
-
+	  build_KRHash(kmers); // build KR hash function
+	  build_minimalPerfectHash(); // build minimal perfect hash function
+	  
+	}
+	
 
         /**
          * Find the hash value of a k-mer
@@ -69,6 +82,15 @@ class generate_hash {
             u_int64_t res = this->bphf->lookup(krv);
             return res;
         }
+
+	/**
+         * Find the hash value of a k-mer
+	 * Allows f( v ) notation
+         */
+	u_int64_t operator()(const kmer_t& seq) {
+	  return get_hash_value( seq );
+	}
+					       
 
     private:
         // Task4: generate_KRHash_val
@@ -91,7 +113,7 @@ class generate_hash {
             // keep generating new base until we find one that is injective over our k-mers
 	    bool f_injective;
 	    do
-            {
+	      {
 	      f_injective = true; //assume f is injective until evidence otherwise
 	      r = randomNumber((u_int64_t) 1, P-1);     
 	      for ( unordered_set< kmer_t >::iterator
@@ -175,3 +197,5 @@ class generate_hash {
 
             
 };
+
+#endif
