@@ -93,7 +93,7 @@ class generate_hash {
 	    do
             {
 	      f_injective = true; //assume f is injective until evidence otherwise
-	      r = randomNumber((u_int64_t) 1, P - 1);     
+	      r = randomNumber((u_int64_t) 1, P-1);     
 	      for ( unordered_set< kmer_t >::iterator
 		      it1 = kmers.begin(); it1 != kmers.end();
 		    ++it1 ) {
