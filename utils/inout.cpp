@@ -1,3 +1,6 @@
+#ifndef IN_OUT
+#define IN_OUT
+
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,18 +16,18 @@ using namespace std;
 
 //char** ref_mat = get_mat<char>(1000,2)
 template<typename T>
-T ** get_mat(int row, int col){
+T ** get_mat(u_int64_t row, int col){
    T** ptr = 0;
    ptr = new T* [row];
-  for(int id =0; id!=row; ++id){
+  for(u_int64_t id =0; id!=row; ++id){
     ptr[id] = new T[col];
     }
    return ptr;
 }
 
 template<typename T>
-void clear_mat(T** mat, int row){
-  for(int id =0; id!=row; ++id){
+void clear_mat(T** mat, u_int64_t row){
+  for(u_int64_t id =0; id!=row; ++id){
      delete [] mat[id];
     }
      delete [] mat;
@@ -67,7 +70,4 @@ void add_edge(bool** IN, bool** OUT, char** ends_ref, u_int64_t inp, u_int64_t o
 
 
 
-int main(int argc, char* argv[]) {
-    
-    return 0;
-}
+#endif
