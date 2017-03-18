@@ -66,8 +66,6 @@ bool isPrime(T n) {
  */
 template <typename T>
 T randomNumber(const T start, const T end){
-
-    std::srand(std::time(NULL));
     double myRand = std::rand()/(1.0 + RAND_MAX); 
     T range = end - start + 1;
     T random_num = (myRand * range) + start;

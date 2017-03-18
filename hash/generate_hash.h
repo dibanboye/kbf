@@ -44,6 +44,8 @@ class generate_hash {
          * Create hash function out of n k-mers of length k
          */
         generate_hash( unordered_set< kmer_t >& kmers , int n , int k ) {
+	  std::srand(std::time(NULL));
+	  
             this->n_kmer = n; // number of k-mers
             this->k_kmer = k; // length of each k-mer
 
@@ -87,38 +89,40 @@ class generate_hash {
             //memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t));
 
             // keep generating new base until we find one that is injective over our k-mers
-            while (1)
+	    bool f_injective;
+	    do
             {
-	      cout << "infinite loop started" << endl;
-                r = randomNumber((u_int64_t) 0, P-1);     
-                // compute rabin hash for each kmer
-		//                for (int i = 0; i < n_kmer; i++) {
-		for ( unordered_set< kmer_t >::iterator
-			it1 = kmers.begin(); it1 != kmers.end();
-		      ++it1 ) {
-		  v = generate_KRHash_val( *it1, k_kmer, r, P);
+	      f_injective = true; //assume f is injective until evidence otherwise
+	      r = randomNumber((u_int64_t) 1, P - 1);     
+	      for ( unordered_set< kmer_t >::iterator
+		      it1 = kmers.begin(); it1 != kmers.end();
+		    ++it1 ) {
+		v = generate_KRHash_val( *it1, k_kmer, r, P);
 
+		if (this->KRHash.find(v) == this->KRHash.end())
+		  {
+		    // this is a new value   
+		    this->KRHash.insert(v);
+		  }
+		else // not injective
+		  {
+		    printf("Testing base=%d Prime=%d fails...\n", r, P);
+		    this->KRHash.clear(); // clear it out and start over
+		    f_injective = false;
+		    break;
+		  }
+		
+	      }
+	    } while (!f_injective);
 
-		  if (this->KRHash.find(v) == this->KRHash.end())
-                    {
-		      // this is a new value   
-		      this->KRHash.insert(v);
-                    }
-		  else // not injective
-                    {
-		      printf("Testing base=%d Prime=%d fails", r, P);
-		      this->KRHash.clear(); // clear it out and start over
-		      break;
-                    }
+	    
+	    printf("Testing base=%d Prime=%d succeed!\n", r, P);
+	    this->base = r;
+	    this->Prime = P;
 
-                }
-                printf("Testing base=%d Prime=%d succeed!\n", r, P);
-                this->base = r;
-                this->Prime = P;
-
-                return;
-            }
-        }
+	    return;
+	}
+        
 
         /**
          * Given a kmer, find out its KRH using base r and prime P
