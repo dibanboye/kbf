@@ -5,8 +5,51 @@
 #include "hash/generate_hash.h"
 #include <vector>
 #include <string>
+#include <unordered_set>
+#include <map>
 
 using namespace std;
+
+class nei_bits {
+public:
+  bool bits[3]; // xyz , where z specifies IN = 0, or OUT = 1, xy specifies A,C,G, or T
+
+  nei_bits() {
+    for (unsigned i = 0; i < 3; ++i) {
+      bits[i] = 0;
+    }
+  }
+
+  nei_bits( const nei_bits& rhs ) {
+    for (unsigned i = 0; i < 3; ++i) {
+      this->bits[i] = rhs.bits[i];
+    }
+  }
+  
+  nei_bits& operator=( const nei_bits& rhs ) {
+    for (unsigned i = 0; i < 3; ++i) {
+      this->bits[i] = rhs.bits[i];
+    }
+    return *this;
+  }
+};
+
+class tree_info {
+public:
+  nei_bits parent;
+  bool is_stored;
+
+  tree_info() {
+    is_stored = false;
+  }
+	       
+};
+
+class forest {
+public:
+  map< u_int64_t, kmer_t > stored_mers;
+  vector< tree_info > parents;
+};
 
 class FDBG {
 public:
@@ -17,7 +60,8 @@ public:
   unsigned n; //number of nodes in graph
   unsigned k; //length of each mer (string in alphabet)
   generate_hash f;
-
+  forest myForest;
+  
   FDBG( vector< string >& reads, 
 	unordered_set<kmer_t>& kmers,
 	unsigned n, //number of kmers
@@ -40,6 +84,10 @@ public:
     OUT.assign( n, vzero );
 
     add_edges( reads, b_verify, os );
+
+    //Perform the forest construction
+    construct_forest( kmers, 3*k*2 ); //alpha = 3klg(sigma)
+    
     if (b_verify) {
       for (unordered_set<kmer_t>::iterator it1 = kmers.begin();
 	   it1 != kmers.end(); ++it1) {
@@ -107,6 +155,219 @@ public:
       }
       os << endl;
     }
+  }
+
+  void initialize_forest() {
+    tree_info empty_tree;
+    empty_tree.is_stored = false;
+    myForest.parents.assign( n, empty_tree );
+  }
+
+  /*
+   * Initially constructs the forest
+   * Requires IN, OUT, f to be already constructed
+   * alpha is the tree height parameter
+   * Requires non-used bits of kmers to be zero
+   */
+  
+  void construct_forest( unordered_set< kmer_t >& kmers, int alpha ) {
+    initialize_forest();
+    unordered_set< kmer_t > visited_mers;
+    vector< int > h( n, -1 );  // height for each node below its tree root
+    vector< kmer_t > p1( n, 0 ); // p1,p2 needed to tell when to store a tree root
+    vector< kmer_t > p2( n, 0 ); //
+    vector< kmer_t > p( n, 0 );  // parent in BFS
+    
+    while (visited_mers.size() != n ) { //there are still connected components to traverse
+      kmer_t root = *kmers.begin(); //this is why we need to delete elements from the kmers set
+      cout << "here" << endl;
+      //update visited_mers, kmers with root
+      update_kmer_sets( visited_mers, kmers, root );
+      store( root );
+      u_int64_t r = f( root );
+      p1[ r ] = root;
+      p2[ r ] = root;
+      h[ r ] = 0;
+
+      cout << "here2" << endl;
+      //BFS queue 
+      queue< kmer_t > Q;
+      Q.push( root );
+
+      //conduct BFS
+      vector< kmer_t > neis;
+      vector< nei_bits > neis_bits;
+      while (!Q.empty()) {
+	kmer_t c = Q.front();
+	Q.pop();
+	get_neighbors( c, neis, neis_bits );
+	for (unsigned ii = 0; ii < neis.size(); ++ii) {
+	  kmer_t m = neis[ii]; //this is 'n' in the pseudocode
+	  if ( visited_mers.find( m ) == visited_mers.end() ) {
+	    //haven't visited m yet
+	    Q.push(m);
+	    update_kmer_sets( visited_mers, kmers, m );
+	    u_int64_t f_m = f(m); //save these values so we don't have to recompute all the time
+	    u_int64_t f_c = f(c);
+	    cout << "f(m): " << f_m << endl;
+	    p[ f_m ] = c;
+	    myForest.parents[ f_m ].parent = neis_bits[ii];
+	    h[ f_m ] = h[ f_c ] + 1;
+	    int height_m = h[ f_m ];
+	    if (height_m <= alpha) {
+	      p1[ f_m ] = p1[ f_c ];
+	      p2[ f_m ] = p2[ f_c ];	      
+	    }
+	    if ( (alpha < height_m) && (height_m <= 2*alpha)) {
+	      store( p1[ f_c ] );
+	      p1[ f_m ] = p1[ f_c ];
+	      p2[ f_m ] = p1[ f_c ];	      
+	    }
+	    if ( height_m == (2 * alpha + 1) ) {
+	      h[ f_m ] = 0;
+	      p1[ f_m ] = m;
+	      p2[ f_m ] = p1[ f_c ];
+	    }
+	  }
+	}
+      }
+    }
+  }
+
+  /*
+   * Finds all (undirected) neighbors of c, using IN, OUT and kmer representation
+   * Returns neighbors in neis
+   * and how to get to each corresponding neighbor in nbits
+   * Assumes kmers have 0's in unused bits
+   */
+  
+  void get_neighbors( kmer_t c,
+		      vector< kmer_t >& neis,
+		      vector< nei_bits >& nbits ) {
+    neis.clear(); nbits.clear();
+    u_int64_t fc = f(c);
+    kmer_t d; //for bit operations
+    //////IN neighbors
+    //copy c for bit operations
+    d = c; 
+    //shift d right by two
+    d >> 2;
+    //means that in the 0th spot, we now have "00"
+    if ( IN[ fc ][ 0 ] ) {
+      //have in-neighbor with 'A'
+      kmer_t e = d;
+      set_kmer( e, k, 0, 'A' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 0;
+      nb.bits[1] = 0;
+      nb.bits[2] = 0;
+      nbits.push_back(nb);
+    }
+    if ( IN[ fc ][ 1 ] ) {
+      //have in-neighbor with 'C'
+      kmer_t e = d;
+      set_kmer( e, k, 0, 'C' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 0;
+      nb.bits[1] = 1;
+      nb.bits[2] = 0;
+      nbits.push_back(nb);
+    }
+    if ( IN[ fc ][ 2 ] ) {
+      //have in-neighbor with 'G'
+      kmer_t e = d;
+      set_kmer( e, k, 0, 'G' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 1;
+      nb.bits[1] = 0;
+      nb.bits[2] = 0;
+      nbits.push_back(nb);
+    }
+    if ( IN[ fc ][ 3 ] ) {
+      //have in-neighbor with 'T'
+      kmer_t e = d;
+      set_kmer( e, k, 0, 'T' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 1;
+      nb.bits[1] = 1;
+      nb.bits[2] = 0;
+      nbits.push_back(nb);
+    }
+    //OUT
+    //similar procedure except need to clear unused bits
+    //copy c for bit operations
+    d = c; 
+    //shift d left by two
+    d << 2;
+    //means that in the kth spot, we now have "00"...
+    //but we need to zero the -1th spot
+    //clear -1th position
+    kmer_t op = 3; //0...011
+    op = op << 2*(k);  //11 in i'th spot, zeros elsewhere, no issues even if k=32
+    op = ~op;      //00 in i'th spot, ones elsewhere
+    d = d & op; //i'th position of mer cleared.
+    
+    if ( OUT[ fc ][ 0 ] ) {
+      //have out-neighbor with 'A'
+      kmer_t e = d;
+      set_kmer( e, k, k - 1, 'A' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 0;
+      nb.bits[1] = 0;
+      nb.bits[2] = 1;
+      nbits.push_back(nb);
+    }
+    if ( OUT[ fc ][ 1 ] ) {
+      //have out-neighbor with 'C'
+      kmer_t e = d;
+      set_kmer( e, k, k - 1, 'C' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 0;
+      nb.bits[1] = 1;
+      nb.bits[2] = 1;
+      nbits.push_back(nb);
+    }
+    if ( OUT[ fc ][ 2 ] ) {
+      //have out-neighbor with 'G'
+      kmer_t e = d;
+      set_kmer( e, k, k - 1, 'G' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 1;
+      nb.bits[1] = 0;
+      nb.bits[2] = 1;
+      nbits.push_back(nb);
+    }
+    if ( OUT[ fc ][ 3 ] ) {
+      //have out-neighbor with 'T'
+      kmer_t e = d;
+      set_kmer( e, k, k - 1, 'T' );
+      neis.push_back( e );
+      nei_bits nb;
+      nb.bits[0] = 1;
+      nb.bits[1] = 1;
+      nb.bits[2] = 1;
+      nbits.push_back(nb);
+    }
+  }
+  
+  void store( kmer_t mer ) {
+    u_int64_t val = f( mer );
+    myForest.stored_mers[ val ] = mer;
+    myForest.parents[ val ].is_stored = true;
+  }
+  
+  void update_kmer_sets( unordered_set< kmer_t >& visited,
+			 unordered_set< kmer_t >& kmers,
+			 kmer_t mer ) {
+    kmers.erase( mer );
+    visited.insert( mer );
   }
 
 };
