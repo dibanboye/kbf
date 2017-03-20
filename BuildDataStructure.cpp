@@ -36,7 +36,26 @@ int main(int argc, char* argv[]) {
     //   cout << f( *it1 ) << endl;
     // }
 
-   FDBG Graph( reads, kmers, kmers.size(), k, true );
+   FDBG Graph( reads, kmers, kmers.size(), k, false );
+   print_kmer( 0, k, cout );
+   if (Graph.detect_membership( 0 ))
+     cout << " member" << endl;
+    else
+     cout << " not member" << endl;
+
+   unordered_set<kmer_t> kmers2 = getKmers(reads, k);
+
+   for (unordered_set<kmer_t>::iterator it1 = kmers2.begin();
+     	it1 != kmers2.end();
+     	++it1) {
+      print_kmer( *it1, k, cout );
+
+      if (Graph.detect_membership( *it1 ))
+	cout << " member" << endl;
+      else
+	cout << " not member" << endl;
+    }
+
 
    return 0;
 }

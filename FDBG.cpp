@@ -32,7 +32,27 @@ public:
     }
     return *this;
   }
+
+  bool operator==( const nei_bits& rhs ) {
+    for (unsigned i = 0; i < 3; ++i) {
+      if (this->bits[i] != rhs.bits[i])
+	return false;
+    }
+
+    return true;
+  }
+
+  friend ostream& operator<<(ostream& os, const nei_bits& rhs );
+  
 };
+
+  ostream& operator<<(ostream& os, const nei_bits& rhs ) {
+    for (unsigned i = 0; i < 3; ++i) {
+      os << rhs.bits[i];
+    }
+
+    return os;
+  }
 
 class tree_info {
 public:
@@ -163,6 +183,38 @@ public:
     myForest.parents.assign( n, empty_tree );
   }
 
+  bool detect_membership( kmer_t m ) {
+    u_int64_t f_m = f(m);
+    if (f_m > n)
+      return false;
+
+    vector< kmer_t > neis;
+    vector< nei_bits > nbits;
+    while ( !(myForest.parents[ f_m ].is_stored) ) {
+      //we need to travel through the tree
+      get_neighbors( m, neis, nbits );
+
+      for (unsigned ii = 0; ii < nbits.size(); ++ii) {
+	//	cout << ' ' << f_m << ' ' <<  nbits[ii] << ' ' << myForest.parents[ f_m ].parent << endl;
+	if (nbits[ii] == myForest.parents[ f_m ].parent) {
+	  m = neis[ii]; //move to parent in the tree
+	  f_m = f(m);
+	  if (f_m > n)
+	    return false;
+	  break;
+	}
+      }
+
+    }
+
+    //if we make it here, we have made it to the root
+    kmer_t root = myForest.stored_mers[ f_m ];
+    if (root == m)
+      return true;
+    else
+      return false;
+  }
+
   /*
    * Initially constructs the forest
    * Requires IN, OUT, f to be already constructed
@@ -218,7 +270,44 @@ public:
 	    u_int64_t f_m = f(m); //save these values so we don't have to recompute all the time
 	    u_int64_t f_c = f(c);
 	    p[ f_m ] = c;
-	    myForest.parents[ f_m ].parent = neis_bits[ii];
+
+	    //set the parent bit field correctly; want c to be parent of m
+	    unsigned letter;
+	    if (neis_bits[ii].bits[2]) {
+	      //m is an OUT neighbor of c
+	      //therefore C is in an IN-neighbor of m
+	      myForest.parents[ f_m ].parent.bits[2] = 0;
+	      //the character is determined by c's first letter
+	      letter = access_kmer( c, k, 0 );
+	    } else {
+	      //m is an IN neighbor of c
+	      //therefore c is in an OUT-neighbor of m
+	      myForest.parents[ f_m ].parent.bits[2] = 1;
+	      //the character is determined by c's last letter
+	      letter = access_kmer( c, k, k - 1 );
+	    }
+
+	    //map this value to bits
+	    switch (letter) {
+	    case 0:
+	      myForest.parents[ f_m ].parent.bits[0] = 0;
+	      myForest.parents[ f_m ].parent.bits[1] = 0;
+	      break;
+	    case 1:
+	      myForest.parents[ f_m ].parent.bits[0] = 0;
+	      myForest.parents[ f_m ].parent.bits[1] = 1;
+	      break;
+	    case 2:
+	      myForest.parents[ f_m ].parent.bits[0] = 1;
+	      myForest.parents[ f_m ].parent.bits[1] = 0;
+	      break;
+	    case 3:
+	      myForest.parents[ f_m ].parent.bits[0] = 1;
+	      myForest.parents[ f_m ].parent.bits[1] = 1;
+	      break;
+	    }
+	    //	    cout << f_m << ' ' <<  myForest.parents[ f_m ].parent << ' ' << neis_bits[ii] << endl;
+	    
 	    h[ f_m ] = h[ f_c ] + 1;
 	    int height_m = h[ f_m ];
 	    if (height_m <= alpha) {
