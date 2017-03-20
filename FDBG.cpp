@@ -85,9 +85,6 @@ public:
 
     add_edges( reads, b_verify, os );
 
-    //Perform the forest construction
-    construct_forest( kmers, 3*k*2 ); //alpha = 3klg(sigma)
-    
     if (b_verify) {
       for (unordered_set<kmer_t>::iterator it1 = kmers.begin();
 	   it1 != kmers.end(); ++it1) {
@@ -96,6 +93,9 @@ public:
 	os << f( *it1 ) << endl;
       }
     }
+
+    //Perform the forest construction
+    construct_forest( kmers, 3*k*2 ); //alpha = 3klg(sigma)
   }
 
   void add_edges( vector< string >& reads, bool b_verify = false, ostream& os = cout ) {
@@ -180,7 +180,6 @@ public:
     
     while (visited_mers.size() != n ) { //there are still connected components to traverse
       kmer_t root = *kmers.begin(); //this is why we need to delete elements from the kmers set
-      cout << "here" << endl;
       //update visited_mers, kmers with root
       update_kmer_sets( visited_mers, kmers, root );
       store( root );
@@ -189,7 +188,6 @@ public:
       p2[ r ] = root;
       h[ r ] = 0;
 
-      cout << "here2" << endl;
       //BFS queue 
       queue< kmer_t > Q;
       Q.push( root );
@@ -201,6 +199,16 @@ public:
 	kmer_t c = Q.front();
 	Q.pop();
 	get_neighbors( c, neis, neis_bits );
+
+	// Debugging code
+	// cout << "Neighbors of: ";
+	// print_kmer(c, k, cout);
+	// cout << endl;
+	// for (unsigned ii = 0; ii < neis.size(); ++ii) {
+	//   print_kmer( neis[ii], k, cout);
+	//   cout << endl;
+	// }
+	
 	for (unsigned ii = 0; ii < neis.size(); ++ii) {
 	  kmer_t m = neis[ii]; //this is 'n' in the pseudocode
 	  if ( visited_mers.find( m ) == visited_mers.end() ) {
@@ -209,7 +217,6 @@ public:
 	    update_kmer_sets( visited_mers, kmers, m );
 	    u_int64_t f_m = f(m); //save these values so we don't have to recompute all the time
 	    u_int64_t f_c = f(c);
-	    cout << "f(m): " << f_m << endl;
 	    p[ f_m ] = c;
 	    myForest.parents[ f_m ].parent = neis_bits[ii];
 	    h[ f_m ] = h[ f_c ] + 1;
@@ -248,10 +255,9 @@ public:
     u_int64_t fc = f(c);
     kmer_t d; //for bit operations
     //////IN neighbors
-    //copy c for bit operations
-    d = c; 
-    //shift d right by two
-    d >> 2;
+    //copy c for bit operations, shift right by two
+    d = c >> 2; 
+
     //means that in the 0th spot, we now have "00"
     if ( IN[ fc ][ 0 ] ) {
       //have in-neighbor with 'A'
@@ -299,10 +305,9 @@ public:
     }
     //OUT
     //similar procedure except need to clear unused bits
-    //copy c for bit operations
-    d = c; 
-    //shift d left by two
-    d << 2;
+    //copy c for bit operations, shift left by two
+    d = c << 2; 
+
     //means that in the kth spot, we now have "00"...
     //but we need to zero the -1th spot
     //clear -1th position
