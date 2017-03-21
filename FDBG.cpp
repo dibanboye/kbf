@@ -71,7 +71,12 @@ public:
   vector< tree_info > parents;
 };
 
+
+/**
+ * This class represents the fully dynamic De Bruijn graph
+ */
 class FDBG {
+
 public:
 
   vector< vector< bool > > IN; //size n x sigma, in edges
@@ -79,8 +84,8 @@ public:
   unsigned sigma; //alphabet-size. For now, only 4 is supported
   unsigned n; //number of nodes in graph
   unsigned k; //length of each mer (string in alphabet)
-  generate_hash f;
-  forest myForest;
+  generate_hash f; //hash function that takes each kmer to 1..n
+  forest myForest; //the forest (described in paper)
   
   FDBG( vector< string >& reads, 
 	unordered_set<kmer_t>& kmers,
@@ -98,63 +103,94 @@ public:
     //construct hash function f
     f.construct_hash_function( kmers, n, k );
 
+    //debugging
+    //print each value and mapping
+    unordered_set<kmer_t>::iterator i;
+    for (i = kmers.begin(); i!= kmers.end(); ++i) {
+       BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k) << " maps to "
+       << f(*i);
+    }
+
     //initialize IN, OUT to zero (false)
+    BOOST_LOG_TRIVIAL(info) << "Initializing IN and OUT.";
     vector< bool > vzero( sigma, false );
     IN.assign( n, vzero );
     OUT.assign( n, vzero );
 
+    //add edges to IN and OUT using reads
+    BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
     add_edges( reads, b_verify, os );
-
-    if (b_verify) {
-      for (unordered_set<kmer_t>::iterator it1 = kmers.begin();
-	   it1 != kmers.end(); ++it1) {
-	print_kmer( *it1, k, cout );
-	os << ' ';
-	os << f( *it1 ) << endl;
-      }
-    }
 
     //Perform the forest construction
     construct_forest( kmers, 3*k*2 ); //alpha = 3klg(sigma)
   }
 
+  /**
+   * Add edges to IN and OUT using reads (not kmers)
+   */
   void add_edges( vector< string >& reads, bool b_verify = false, ostream& os = cout ) {
     string read;
     string kplusone;
-    for (unsigned i = 0; i < reads.size(); ++i) {
+ 
+   //for each read, get k+1 length pieces that we can
+   //figure out an edge between two kmers
+   for (unsigned i = 0; i < reads.size(); ++i) {
       read = reads[i];
       unsigned index1 = 0;
 
       while (index1 + k < read.size()) {
-	//we can get a k + 1 - mer
+	//get a k + 1 - mer
 	kplusone = read.substr( index1, k + 1 );
+        BOOST_LOG_TRIVIAL(debug) << "Read in k+1-mer " << kplusone;
 	add_edge( kplusone );
 	++index1;
       }
     }
 
-    if (b_verify) {
-      for (unsigned i = 0; i < reads.size(); ++i) {
-	os << reads[i] << endl;
-      }
-      os << "IN: " << endl;
-      print_matrix( IN, os );
 
-      os << "OUT: " << endl;
-      print_matrix( OUT, os );
-      
+    BOOST_LOG_TRIVIAL(debug) << "Printing IN ...";
+    for (int i = 0; i < IN.size(); i++) {
+        if (IN[i].size() == 4) {
+           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << IN[i][0] << ", "
+              << IN[i][1] << ", "
+              << IN[i][2] << ", " << IN[i][3];
+        }
+        else {
+           BOOST_LOG_TRIVIAL(error) << "IN does not have the correct dimensions.";
+        }
     }
+
+    BOOST_LOG_TRIVIAL(debug) << "Printing OUT ...";
+    for (int i = 0; i < OUT.size(); i++) {
+        if (OUT[i].size() == 4) {
+           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << OUT[i][0] << ", "
+              << OUT[i][1] << ", "
+              << OUT[i][2] << ", " << OUT[i][3];
+        }
+        else {
+           BOOST_LOG_TRIVIAL(error) << "OUT does not have the correct dimensions.";
+        }
+    }
+
   }
 
+  //add edge implied by the k+1-mer (between the first k and last k characters).
   void add_edge( string& edge ) {
+
+    // figure out the two kmers
     kmer_t u,v;
     split_edge( edge, u, v );
+    BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, k)
+        << " to " << get_kmer_str(v, k);
+
+    // get which column in sigma to put in (corresponds to which letter is the first/last)
+    // number 0..3 represent each alphabet letter
     unsigned first, last;
     first = access_kmer( u, k, 0 );
     last = access_kmer( v, k, k - 1 );
-    // OUT[ f(u), last ] = 1
+
+    // set edge in IN/OUT 
     OUT[ f(u) ][ last ] = true;
-    // IN[ f(v), first ] = 1
     IN[ f(v) ][ first ] = true;
   }
 
@@ -178,6 +214,8 @@ public:
   }
 
   void initialize_forest() {
+
+    BOOST_LOG_TRIVIAL(info) << "Initializing the forest ...";
     tree_info empty_tree;
     empty_tree.is_stored = false;
     myForest.parents.assign( n, empty_tree );
@@ -221,9 +259,10 @@ public:
    * alpha is the tree height parameter
    * Requires non-used bits of kmers to be zero
    */
-  
   void construct_forest( unordered_set< kmer_t >& kmers, int alpha ) {
+  
     initialize_forest();
+
     unordered_set< kmer_t > visited_mers;
     vector< int > h( n, -1 );  // height for each node below its tree root
     vector< kmer_t > p1( n, 0 ); // p1,p2 needed to tell when to store a tree root

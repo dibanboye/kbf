@@ -35,11 +35,8 @@ class generate_hash {
 
         boophf_t* bphf; //MPHF we will generate
 
-        //static double gammaFactor = 2.0; 
         u_int64_t base; // the base for our Karp-Rabin Hash function
         u_int64_t Prime; // the prime for our Karp-Rabin Hash function
-
-        const static unsigned int nthreads = 4; // # of threads for BBHash
 
         const static short sigma = 4; // alphabet size
 
@@ -61,11 +58,7 @@ class generate_hash {
 	  this->n_kmer = n; // number of k-mers
 	  this->k_kmer = k; // length of each k-mer
 	  
-	  //KR_hash_val = (u_int64_t *) calloc(n_kmer, sizeof(u_int64_t)); // space to store KRH image
-
-            //memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t)); // initialize to 0
-        
-	  printf("Generate hash function ... \n");
+          BOOST_LOG_TRIVIAL(info) << "Constructing the hash function ...";
 
 	  build_KRHash(kmers); // build KR hash function
 	  build_minimalPerfectHash(); // build minimal perfect hash function
@@ -99,7 +92,8 @@ class generate_hash {
         // r is the base 
         // P is the prime
         void build_KRHash( unordered_set< kmer_t >& kmers ){
-            printf("Build rabin hash function ... \n");
+
+            BOOST_LOG_TRIVIAL(info) << "Constructing Karp-Rabin hash function ...";
 
             u_int64_t r; // our base, which we will figure out in loop
             u_int64_t v; // holder for KRH value
@@ -128,7 +122,8 @@ class generate_hash {
 		  }
 		else // not injective
 		  {
-		    printf("Testing base=%d Prime=%d fails...\n", r, P);
+                    BOOST_LOG_TRIVIAL(debug) << "Base " << r << " with prime "
+                       << P << " failed injectivity.";
 		    this->KRHash.clear(); // clear it out and start over
 		    f_injective = false;
 		    break;
@@ -138,7 +133,7 @@ class generate_hash {
 	    } while (!f_injective);
 
 	    
-	    printf("Testing base=%d Prime=%d succeed!\n", r, P);
+            BOOST_LOG_TRIVIAL(info) << "Base " << r << " with prime " << P << " is injective.";
 	    this->base = r;
 	    this->Prime = P;
 
@@ -185,14 +180,16 @@ class generate_hash {
 
 	  //            bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, data_iterator, nthreads, gammaFactor);
 
+            BOOST_LOG_TRIVIAL(info) << "Building minimal perfect hash function ...";
+
             std::vector<u_int64_t> KRHash_vec = std::vector<u_int64_t>(this->KRHash.begin(),
                this->KRHash.end());
 
             // MPHF for our KRHash function values
-            this->bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, KRHash_vec);
+            this->bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, KRHash_vec, 4, 2.0, true, false);
 
-            printf("The minimal perfect hashing function is generated. \n");
-            printf("boophf  bits/elem : %f\n",(float) (bphf->totalBitSize())/n_kmer);
+            BOOST_LOG_TRIVIAL(info) << "Minimal perfect hash function created with "
+               << (float) (bphf->totalBitSize())/n_kmer << " bits per element.";
         }
 
             

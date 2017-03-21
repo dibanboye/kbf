@@ -12,6 +12,7 @@ T randomNumber(const T, const T);
 short baseNum(char);
 unsigned access_kmer( kmer_t mer,  unsigned i );
 void print_kmer( kmer_t mer, unsigned k,ostream& os);
+string get_kmer_str( kmer_t mer, unsigned k);
 /**Utility functions for generating our hash function*/
 
 /**
@@ -99,24 +100,38 @@ unsigned access_kmer( kmer_t mer, unsigned k, unsigned i ) {
 }
 
 void print_kmer( kmer_t mer, unsigned k,ostream& os) {
+
+  os << get_kmer_str(mer, k);
+
+}
+
+string get_kmer_str( kmer_t mer, unsigned k) {
+
+  string kmer_str = "";
+
   for (unsigned i = 0; i < k; ++i) {
+
     unsigned kk = access_kmer( mer, k, i );
+
     switch( kk ) {
-    case 0:
-      os << 'A';
-      break;
-    case 1:
-      os << 'C';
-      break;
-    case 2:
-      os << 'G';
-      break;
-    case 3:
-      os << 'T';
-      break;
+      case 0:
+        kmer_str += 'A';
+        break;
+      case 1:
+        kmer_str += 'C';
+        break;
+      case 2:
+        kmer_str += 'G';
+        break;
+      case 3:
+        kmer_str += 'T';
+        break;
     }
   }
+
+  return kmer_str;
 }
+
 
 /*
  * Sets the i'th position of a mer of length k as indicated by character c
