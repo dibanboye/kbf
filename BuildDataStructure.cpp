@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
    // Check if the user put in the correct command line arguments
    if (argc < 3) {
          BOOST_LOG_TRIVIAL(fatal) << "Missing required arguments. Usage:"
-                                     "kbf <reads.fa> <k>";
+				  << argv[0] << " <reads.fa> <k>";
          exit(1);
    }
   
@@ -49,28 +49,20 @@ int main(int argc, char* argv[]) {
  
    BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
    FDBG Graph( reads, kmers, kmers.size(), k, false );
-   return 0;
-
-   print_kmer( 0, k, cout );
-   if (Graph.detect_membership( 0 ))
-     cout << " member" << endl;
-    else
-     cout << " not member" << endl;
 
    unordered_set<kmer_t> kmers2 = getKmers(reads, k);
 
    for (unordered_set<kmer_t>::iterator it1 = kmers2.begin();
      	it1 != kmers2.end();
      	++it1) {
-      print_kmer( *it1, k, cout );
+     if (!Graph.detect_membership( *it1 )) {
+       BOOST_LOG_TRIVIAL(fatal) << "Forest not detecting member k-mer " << get_kmer_str( *it1, k);
+       exit( 1 );
+     }
+   }
 
-      if (Graph.detect_membership( *it1 ))
-	cout << " member" << endl;
-      else
-	cout << " not member" << endl;
-    }
-
-
+   BOOST_LOG_TRIVIAL(info) << "Forest correctly detects all member k-mers.";
+   
    return 0;
 }
 

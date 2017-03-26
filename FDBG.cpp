@@ -122,6 +122,13 @@ public:
     this->is_stored = false;
   }
 
+  ForestNode(bool INorOUT, unsigned lett) : letter( lett ) {
+
+    this->INorOUT = INorOUT;
+
+    this->is_stored = false;
+  }
+
   ForestNode( const ForestNode& rhs ) {
     this->letter = rhs.letter;
     this->INorOUT = rhs.INorOUT;
@@ -177,6 +184,7 @@ public:
   unsigned k; //length of each mer (string in alphabet)
   generate_hash f; //hash function that takes each kmer to 1..n
   forest myForest; //the forest (described in paper)
+  unsigned alpha;   //each tree in forest is guaranteed to be of height alpha to 3alpha
   
   FDBG( vector< string >& reads, 
 	unordered_set<kmer_t>& kmers,
@@ -213,7 +221,7 @@ public:
     add_edges( reads, b_verify, os );
 
     //Perform the forest construction
-    construct_forest( kmers, 3*k*2 ); //alpha = 3klg(sigma)
+    construct_forest( kmers, k*2 ); //alpha = k * lg(sigma)
   }
 
   /**
@@ -307,7 +315,6 @@ public:
 
   // Given a kmer, decide if it is one in our graph
   bool detect_membership( kmer_t m ) {
-
     BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
 
     // The hash value of our kmer
@@ -322,9 +329,15 @@ public:
     // get forest node
     ForestNode fn = myForest.nodes[hash];
 
+    //number of times we have traveled in the tree
+    unsigned hopcount = 0;
+    
     // fn is where we are in the tree. Keep going until we know its kmer value.
     while ( !(fn.is_stored) ) {
-
+      ++hopcount;
+      if (hopcount > 3*alpha + 1)
+	return false; //we have encountered a cycle in our attempt to travel to a root
+	
       // deduce the parent's kmer
       m = fn.getNext(m, k); 
 
@@ -357,7 +370,8 @@ public:
    * WARNING: kmers will be modified
    */
   void construct_forest( unordered_set< kmer_t >& kmers, int alpha ) {
- 
+    BOOST_LOG_TRIVIAL(info) << "Beginning the forest construction, with alpha = " << alpha;
+    this->alpha = alpha;
     // kmers that we have looked at for the forest construction
     unordered_set< kmer_t > visited_mers;
 
@@ -376,6 +390,7 @@ public:
       store( root );
 
       BOOST_LOG_TRIVIAL(debug) << "Building forest from root " + get_kmer_str(root, k);
+      BOOST_LOG_TRIVIAL(debug) << "Forest size, n " << myForest.nodes.size() << ' ' << n;
 
       // We have visited root
       move_kmer( kmers, visited_mers, root );
@@ -397,7 +412,6 @@ public:
       // Kmers of this nodes's neighbors, and if they are in or out neighbors
       vector< kmer_t > neis;
       vector< bool > v_inorout;
-     
       
       // BFS 
       while (!Q.empty()) {
@@ -409,18 +423,20 @@ public:
         // Neighbors of c
 	get_neighbors( c, neis, v_inorout );
 
-	ForestNode INc( false, access_kmer( c, k, k - 1 ) ); //the ForestNode for an IN-neighbor of c
-	ForestNode OUTc( true, access_kmer( c, k, 0 ) ); //the ForestNode for an IN-neighbor of c
+       	ForestNode INc( false, access_kmer( c, k, k - 1 ) ); //the ForestNode for an IN-neighbor of c
+	ForestNode OUTc( true, access_kmer( c, k, 0 ) ); //the ForestNode for an OUT-neighbor of c
 	
 	for (unsigned ii = 0; ii < neis.size(); ++ii) {
 	  kmer_t m = neis[ii]; //this is 'n' in the pseudocode
+	  BOOST_LOG_TRIVIAL(debug) << "Checking neighbor m: " + get_kmer_str(m, k);
 	  if ( visited_mers.find( m ) == visited_mers.end() ) {
 	    //haven't visited m yet
 	    Q.push(m);
 	    move_kmer( kmers, visited_mers, m );
+	    BOOST_LOG_TRIVIAL(debug) << "Number of kmers visited: " << visited_mers.size();
 	    u_int64_t f_m = f(m); //save these values so we don't have to recompute all the time
 	    u_int64_t f_c = f(c);
-	    p[ f_m ] = c;
+ 	    p[ f_m ] = c;
 
 	    if (v_inorout[ ii ]){
 	      //m is IN neighbor of c
@@ -466,7 +482,7 @@ public:
 
     // Need hash value of our kmer to look into IN and OUT
     u_int64_t fc = f(c);
-    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << c << ' ' << fc;
+    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << get_kmer_str(c, k  ) << ' ' << fc;
     BOOST_LOG_TRIVIAL(trace) << "Size of IN,OUT: " << IN[ fc ].size() << ' ' << OUT[ fc ].size();
     for ( unsigned ii = 0; ii < 4; ++ii ) {
       if ( IN[ fc ][ ii ] ) {
@@ -494,7 +510,11 @@ public:
       }
     }
 
-    BOOST_LOG_TRIVIAL(trace) << "Neighbors found.";
+    BOOST_LOG_TRIVIAL(trace) << "Neighbors found: ";
+    for (unsigned i = 0; i < neighbor_kmers.size(); ++i) {
+      BOOST_LOG_TRIVIAL(trace) << i << ' ' << get_kmer_str( neighbor_kmers[i], k ) << " is an "<<	v_inorout[ i ] << " neighbor.";
+      
+    }
   }
   
   void store( kmer_t mer ) {
@@ -545,12 +565,11 @@ void access_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
 // Going backwards along an edge (the relationship comes from orig's IN).
 // For example, orig = AGCT, then it returns GAGC
 kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
-  BOOST_LOG_TRIVIAL(trace) << "pushOnFront " + get_kmer_str(orig, k);
+  BOOST_LOG_TRIVIAL(trace) << "pushOnFront " + get_kmer_str(orig, k) << ' ' << letter.getNum();
   // Get the kmer with back pushed off orig
   kmer_t new_kmer = orig >> 2;
 
   set_kmer( new_kmer, k, 0, letter);
-  BOOST_LOG_TRIVIAL(trace) << "new_kmer: " + get_kmer_str(new_kmer, k);
 
   return new_kmer;
 } 
@@ -559,11 +578,16 @@ kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
 // Going forward along an edge (the relationship comes from orig's OUT).
 // For example, orig = AGCT, then it returns GAGC
 kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned k) {
-
-  // Get the kmer with back pushed off orig
+  BOOST_LOG_TRIVIAL(trace) << "pushOnBack " + get_kmer_str(orig, k) << ' ' << letter.getNum();
+  // Get the kmer with front pushed off orig
   kmer_t new_kmer = orig << 2;
-
   set_kmer( new_kmer, k, k - 1, letter);
+  //but we need to zero the -1th spot
+  //clear -1th position
+  kmer_t op = 3; //0...011
+  op = op << 2*(k);  //11 in -1'st spot, zeros elsewhere, no issues even if k=32
+  op = ~op;      //00 in i'th spot, ones elsewhere
+  new_kmer = new_kmer & op; //i'th position of mer cleared.
 
   return new_kmer;
 } 
