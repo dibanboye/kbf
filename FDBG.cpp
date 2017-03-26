@@ -10,26 +10,76 @@
 
 using namespace std;
 
-void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter c );
-kmer_t pushOnFront(kmer_t& orig, Letter& letter);
-kmer_t pushOnBack(kmer_t& orig, Letter& letter);
+class Letter; //needed for set_kmer declaration
+
+void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c );
+void set_kmer( kmer_t& mer, unsigned k, unsigned i, char c );
+kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned);
+kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned);
 
 // Representation of A, C, G, and T in bits 00, 01, 10, 11
 class Letter {
+  bool bits[2];
+  void set_bits( char letter ) {
+    switch ( letter ) {
+    case 'A':
+      bits[0] = 0;
+      bits[1] = 0;
+      break;
+    case 'C':
+      bits[0] = 0;
+      bits[1] = 1;
+      break;
+    case 'G':
+      bits[0] = 1;
+      bits[1] = 0;
+      break;
+    case 'T':
+      bits[0] = 1;
+      bits[1] = 1;
+      break;
+    }
 
+  }
+  
 public:
-  bool[2] bits;
 
-  Letter() {
-     bits[0] = 0;
-     bits[1] = 0;
+  void set( unsigned ii ) {
+
+  }
+  
+
+  Letter()  {
+    set_bits( 'A' );
   }
 
-  Letter(bool first, bool second) {
-     bits[0] = first;
-     bits[1] = second;
+  //  Letter(bool first, bool second) {
+  //     bits[0] = first;
+  //     bits[1] = second;
+  //  }
+
+  Letter( unsigned letter ) {
+    switch (letter) {
+    case 0:
+      set_bits( 'A' );
+      break;
+    case 1:
+      set_bits( 'C' );
+      break;
+    case 2:
+      set_bits( 'G' );
+      break;
+    case 3:
+      set_bits( 'T' );
+      break;
+    }
+  }
+  
+  Letter( char letter ) {
+    set_bits( letter );
   }
 
+  
   // Return number 0..3 for this letter
   unsigned getNum() {
     return 2*((int)bits[0]) + ((int)bits[1]);
@@ -37,13 +87,15 @@ public:
 
   Letter& operator=( const Letter& rhs ) {
 
-    this->bits[0] = rhs->bits[0];
-    this->bits[1] = rhs->bits[1];
+    this->bits[0] = rhs.bits[0];
+    this->bits[1] = rhs.bits[1];
     return *this;
   }
 
-}
+};
 
+
+  
 // Class that represents a node in the forest
 // The only information encoded is whether it was reached during
 // the forest creation via IN or OUT (which determines how to recover
@@ -71,28 +123,28 @@ public:
   }
 
   ForestNode( const ForestNode& rhs ) {
-    this->letter = rhs->letter;
-    this->INorOUT = rhs->INorOUT;
+    this->letter = rhs.letter;
+    this->INorOUT = rhs.INorOUT;
 
-    this.is_stored = rhs.is_stored;
+    this->is_stored = rhs.is_stored;
   }
   
   // Given this node's kmer string, figure out parent's kmer string
-  kmer_t getNext(kmer_t& mer) {
+  kmer_t getNext(kmer_t& mer, unsigned k) {
 
     if (this->INorOUT) {
-      return pushOnBack(mer, letter);
+      return pushOnFront(mer, letter, k);
     }
     else {
-      return pushOnFront(mer, letter);
+      return pushOnBack(mer, letter, k);
     }
   }
 
   ForestNode& operator=( const ForestNode& rhs ) {
 
-    this->letter = rhs->letter;
-    this->is_stored = rhs->is_stored;
-    this->INorOUT = rhs->INorOUT;
+    this->letter = rhs.letter;
+    this->is_stored = rhs.is_stored;
+    this->INorOUT = rhs.INorOUT;
     return *this;
   }
 
@@ -105,8 +157,8 @@ public:
   vector< ForestNode > nodes;
 
   // Create a forest that has num_nodes nodes
-  forest(int num_nodes) {
-    nodes = vector(num_nodes, ForestNode()); 
+  forest(int num_nodes) : nodes( num_nodes ) {
+
   }
 };
 
@@ -132,7 +184,7 @@ public:
 	unsigned k, //mer size
 	bool b_verify = false, //if true, print summary
 	ostream& os = cout
-	) 
+	) : myForest( n )
   {
     sigma = 4;
     
@@ -153,8 +205,8 @@ public:
     //initialize IN, OUT to zero (false)
     BOOST_LOG_TRIVIAL(info) << "Initializing IN and OUT.";
     vector< bool > vzero( sigma, false );
-    IN.assign( this.n, vzero );
-    OUT.assign( this.n, vzero );
+    IN.assign( this->n, vzero );
+    OUT.assign( this->n, vzero );
 
     //add edges to IN and OUT using reads
     BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
@@ -256,10 +308,10 @@ public:
   // Given a kmer, decide if it is one in our graph
   bool detect_membership( kmer_t m ) {
 
-    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this.k);
+    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
 
     // The hash value of our kmer
-    u_int64_t hash = this.f(m);
+    u_int64_t hash = f(m);
 
     BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
 
@@ -274,20 +326,20 @@ public:
     while ( !(fn.is_stored) ) {
 
       // deduce the parent's kmer
-      m = fn.getNext(m); 
+      m = fn.getNext(m, k); 
 
       // get the parent's hash
-      hash = this.f(m);
+      hash = f(m);
 
       BOOST_LOG_TRIVIAL(debug) << "... which goes to hash value " << hash;
 
       // hash must be in 0...n-1
       if (hash >= n) return false;
 
-      fn = this.myForest.nodes[hash];
+      fn = myForest.nodes[hash];
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, this.k) << " is deduced";
+    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, k) << " is deduced";
 
     // now we have a forest node that we have the kmer of stored
     // So we just have to test if it is accurate or not
@@ -306,9 +358,6 @@ public:
    */
   void construct_forest( unordered_set< kmer_t >& kmers, int alpha ) {
  
-    // construct a forest with n empty nodes 
-    this.myForest = forest(this.n);
-
     // kmers that we have looked at for the forest construction
     unordered_set< kmer_t > visited_mers;
 
@@ -326,7 +375,7 @@ public:
       kmer_t root = *kmers.begin();
       store( root );
 
-      BOOST_LOG_TRIVIAL(debug) << "Building forest from root " + get_kmer_str(root, this.k);
+      BOOST_LOG_TRIVIAL(debug) << "Building forest from root " + get_kmer_str(root, k);
 
       // We have visited root
       move_kmer( kmers, visited_mers, root );
@@ -334,7 +383,7 @@ public:
       // The hash value of the root
       u_int64_t r = f( root );
 
-      // It is the root, both parents are itself
+      // See pseudocode for p1,p2
       p1[ r ] = root;
       p2[ r ] = root;
 
@@ -345,21 +394,23 @@ public:
       queue< kmer_t > Q;
       Q.push( root );
 
-      // Kmers of this nodes's neighbors
-      vector< kmer_t > neighbor_kmers;
-
-      // The neighbors in the form we will need for our forest
-      vector< ForestNode > neighbor_nodes;
-
+      // Kmers of this nodes's neighbors, and if they are in or out neighbors
+      vector< kmer_t > neis;
+      vector< bool > v_inorout;
+     
+      
       // BFS 
       while (!Q.empty()) {
         // Next k-mer to visit neighbors of
 	kmer_t c = Q.front();
 	Q.pop();
-        BOOST_LOG_TRIVIAL(debug) << "Visiting neighbors of node " + get_kmer_str(c, this.k);
+        BOOST_LOG_TRIVIAL(debug) << "Visiting neighbors of node " + get_kmer_str(c, k);
 
         // Neighbors of c
-	get_neighbors( c, neighbor_kmers, neighbor_nodes );
+	get_neighbors( c, neis, v_inorout );
+
+	ForestNode INc( false, access_kmer( c, k, k - 1 ) ); //the ForestNode for an IN-neighbor of c
+	ForestNode OUTc( true, access_kmer( c, k, 0 ) ); //the ForestNode for an IN-neighbor of c
 	
 	for (unsigned ii = 0; ii < neis.size(); ++ii) {
 	  kmer_t m = neis[ii]; //this is 'n' in the pseudocode
@@ -371,42 +422,12 @@ public:
 	    u_int64_t f_c = f(c);
 	    p[ f_m ] = c;
 
-	    //set the parent bit field correctly; want c to be parent of m
-	    unsigned letter;
-	    if (neis_bits[ii].bits[2]) {
-	      //m is an OUT neighbor of c
-	      //therefore C is in an IN-neighbor of m
-	      myForest.nodes[ f_m ].parent.bits[2] = 0;
-	      //the character is determined by c's first letter
-	      letter = access_kmer( c, k, 0 );
+	    if (v_inorout[ ii ]){
+	      //m is IN neighbor of c
+	      myForest.nodes[ f_m ] = INc;
 	    } else {
-	      //m is an IN neighbor of c
-	      //therefore c is in an OUT-neighbor of m
-	      myForest.nodes[ f_m ].parent.bits[2] = 1;
-	      //the character is determined by c's last letter
-	      letter = access_kmer( c, k, k - 1 );
+	      myForest.nodes[ f_m ] = OUTc;
 	    }
-
-	    //map this value to bits
-	    switch (letter) {
-	    case 0:
-	      myForest.nodes[ f_m ].parent.bits[0] = 0;
-	      myForest.nodes[ f_m ].parent.bits[1] = 0;
-	      break;
-	    case 1:
-	      myForest.nodes[ f_m ].parent.bits[0] = 0;
-	      myForest.nodes[ f_m ].parent.bits[1] = 1;
-	      break;
-	    case 2:
-	      myForest.nodes[ f_m ].parent.bits[0] = 1;
-	      myForest.nodes[ f_m ].parent.bits[1] = 0;
-	      break;
-	    case 3:
-	      myForest.nodes[ f_m ].parent.bits[0] = 1;
-	      myForest.nodes[ f_m ].parent.bits[1] = 1;
-	      break;
-	    }
-	    //	    cout << f_m << ' ' <<  myForest.parents[ f_m ].parent << ' ' << neis_bits[ii] << endl;
 	    
 	    h[ f_m ] = h[ f_c ] + 1;
 	    int height_m = h[ f_m ];
@@ -431,112 +452,55 @@ public:
   }
 
   /**
-   * Given a kmer c, get all neighbor kmers (neighbor_kmers) and their ForestNode
-   * representation (where c is the parent). 
+   * Given a kmer c, get all neighbor kmers (neighbor_kmers) 
+   * for neighbor_kmers[ i ], v_inorout[ i ] is true if in-neighbor, false otherwise
    */
   void get_neighbors( kmer_t& c,
 		      vector< kmer_t >& neighbor_kmers,
-		      vector< ForestNode >& neighbor_nodes ) {
+		      vector< bool >& v_inorout ) {
 
-    neis.clear();
-    nbits.clear();
+    neighbor_kmers.clear();
+    v_inorout.clear();
 
-    BOOST_LOG_TRIVIAL(debug) << "Finding neighbors of " + get_kmer_str(c, this.k);
+    BOOST_LOG_TRIVIAL(debug) << "Finding neighbors of " + get_kmer_str(c, k);
 
     // Need hash value of our kmer to look into IN and OUT
     u_int64_t fc = f(c);
+    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << c << ' ' << fc;
+    BOOST_LOG_TRIVIAL(trace) << "Size of IN,OUT: " << IN[ fc ].size() << ' ' << OUT[ fc ].size();
+    for ( unsigned ii = 0; ii < 4; ++ii ) {
+      if ( IN[ fc ][ ii ] ) {
+	//have in-neighbor with letter
+	Letter letter ( ii );
+	BOOST_LOG_TRIVIAL(trace) << "letter: " << ii << ' ' << letter.getNum();
+	// Deduce that kmer by tacking letter at the beginning of c
+	kmer_t e = pushOnFront(c, letter, k);
+	neighbor_kmers.push_back( e );
 
-    // First, get neighbors from the IN matrix
+	BOOST_LOG_TRIVIAL(trace) << "neighbor: " + get_kmer_str(e, k);
+	
+	v_inorout.push_back( true ); //true=IN
+      }
+      if ( OUT[ fc ][ ii ] ) {
+	//have out-neighbor with letter
+	Letter letter ( ii );
 
-    // Neighbors coming in do not have the last letter of the kmer (c)
+	// Deduce that kmer by tacking letter at the end of c
+	kmer_t e = pushOnBack(c, letter, k);
+	neighbor_kmers.push_back( e );
 
-    if ( IN[ fc ][ 0 ] ) {
-      //have in-neighbor with 'A'
-      Letter letter (0, 0);
+	v_inorout.push_back( false ); //false=OUT
 
-      // Deduce that kmer by tacking 'A' at the beginning of d
-      kmer_t e = pushOnFront(c, letter);
-      neighbor_kmers.push_back( e );
+      }
+    }
 
-      // Add to neighbors
-      ForestNode nb (0, letter);
-      neighbor_nodes.push_back(nb);
-    }
-    if ( IN[ fc ][ 1 ] ) {
-      //have in-neighbor with 'C'
-      kmer_t e = d;
-      set_kmer( e, k, 0, 'C' );
-      neis.push_back( e );
-      ForestNode nb (0, 1, 0);
-      nbits.push_back(nb);
-    }
-    if ( IN[ fc ][ 2 ] ) {
-      //have in-neighbor with 'G'
-      kmer_t e = d;
-      set_kmer( e, k, 0, 'G' );
-      neis.push_back( e );
-      ForestNode nb (1, 0, 0);
-      nbits.push_back(nb);
-    }
-    if ( IN[ fc ][ 3 ] ) {
-      //have in-neighbor with 'T'
-      kmer_t e = d;
-      set_kmer( e, k, 0, 'T' );
-      neis.push_back( e );
-      ForestNode nb (1, 1, 0);
-      nbits.push_back(nb);
-    }
-    //OUT
-    //similar procedure except need to clear unused bits
-    //copy c for bit operations, shift left by two
-    d = c << 2; 
-
-    //means that in the kth spot, we now have "00"...
-    //but we need to zero the -1th spot
-    //clear -1th position
-    kmer_t op = 3; //0...011
-    op = op << 2*(k);  //11 in i'th spot, zeros elsewhere, no issues even if k=32
-    op = ~op;      //00 in i'th spot, ones elsewhere
-    d = d & op; //i'th position of mer cleared.
-    
-    if ( OUT[ fc ][ 0 ] ) {
-      //have out-neighbor with 'A'
-      kmer_t e = d;
-      set_kmer( e, k, k - 1, 'A' );
-      neis.push_back( e );
-      ForestNode nb (0, 0, 1);
-      nbits.push_back(nb);
-    }
-    if ( OUT[ fc ][ 1 ] ) {
-      //have out-neighbor with 'C'
-      kmer_t e = d;
-      set_kmer( e, k, k - 1, 'C' );
-      neis.push_back( e );
-      ForestNode nb (0, 1, 1);
-      nbits.push_back(nb);
-    }
-    if ( OUT[ fc ][ 2 ] ) {
-      //have out-neighbor with 'G'
-      kmer_t e = d;
-      set_kmer( e, k, k - 1, 'G' );
-      neis.push_back( e );
-      ForestNode nb (1, 0, 1);
-      nbits.push_back(nb);
-    }
-    if ( OUT[ fc ][ 3 ] ) {
-      //have out-neighbor with 'T'
-      kmer_t e = d;
-      set_kmer( e, k, k - 1, 'T' );
-      neis.push_back( e );
-      ForestNode nb (1, 1, 1);
-      nbits.push_back(nb);
-    }
+    BOOST_LOG_TRIVIAL(trace) << "Neighbors found.";
   }
   
   void store( kmer_t mer ) {
     u_int64_t val = f( mer );
     myForest.stored_mers[ val ] = mer;
-    myForest.Nodes[ val ].is_stored = true;
+    myForest.nodes[ val ].is_stored = true;
   }
   
   // Move mer from kmers and into visited
@@ -560,37 +524,81 @@ void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
   mer = mer & op; //i'th position of mer cleared.
 
   //set i'th position
-  kmer_t val = c->getNum();
+  kmer_t val = c.getNum();
 
   val = val << 2*(k - i - 1);  //correct bits in i'th spot, zeros elsewhere
   mer = mer | val;
 }
 
+/*
+ * Accesses the i'th position of a mer of length k 
+ * Stores result in c 
+ */
+void access_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
+  mer = mer >> 2*(k - i - 1);
+  kmer_t mask = static_cast<kmer_t>(3);
+  mer = mask & mer;
+  c.set( static_cast<unsigned>(mer) );
+}
+
 // Push letter onto front of kmer and return kmer
 // Going backwards along an edge (the relationship comes from orig's IN).
 // For example, orig = AGCT, then it returns GAGC
-kmer_t pushOnFront(kmer_t& orig, Letter& letter) {
-
+kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
+  BOOST_LOG_TRIVIAL(trace) << "pushOnFront " + get_kmer_str(orig, k);
   // Get the kmer with back pushed off orig
   kmer_t new_kmer = orig >> 2;
 
   set_kmer( new_kmer, k, 0, letter);
+  BOOST_LOG_TRIVIAL(trace) << "new_kmer: " + get_kmer_str(new_kmer, k);
 
+  return new_kmer;
 } 
 
 // Push letter onto back of kmer and return kmer
 // Going forward along an edge (the relationship comes from orig's OUT).
 // For example, orig = AGCT, then it returns GAGC
-kmer_t pushOnBack(kmer_t& orig, Letter& letter) {
+kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned k) {
 
   // Get the kmer with back pushed off orig
   kmer_t new_kmer = orig << 2;
 
-  set_kmer( new_kmer, k - 1, 0, letter);
+  set_kmer( new_kmer, k, k - 1, letter);
 
+  return new_kmer;
 } 
 
+/*
+ * Sets the i'th position of a mer of length k as indicated by character c
+ * c \in {A,C,G,T}
+ */
+void set_kmer( kmer_t& mer, unsigned k, unsigned i, char c ) {
+  //clear i-th position
+  kmer_t op = 3; //0...011
+  op = op << 2*(k - i - 1);  //11 in i'th spot, zeros elsewhere
+  op = ~op;      //00 in i'th spot, ones elsewhere
+  mer = mer & op; //i'th position of mer cleared.
 
+  //set i'th position
+  kmer_t val;
+  switch( c ) {
+    case 'A':
+      val = 0;
+      break;
+    case 'C':
+      val = 1;
+      break;
+    case 'G':
+      val = 2;
+      break;
+    case 'T':
+      val = 3;
+      break;
+  }
+
+  val = val << 2*(k - i - 1);  //correct bits in i'th spot, zeros elsewhere
+  mer = mer | val;
+}
 
 #endif
 
