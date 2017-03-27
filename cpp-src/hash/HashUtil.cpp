@@ -2,7 +2,7 @@
 #define HASH_UTIL
 
 #include <ctime>
-#include "../cpp-src/KBFUtil.hpp"
+#include "../KBFUtil.hpp"
 template <typename T>
 T getPrime(T);
 template <typename T>
