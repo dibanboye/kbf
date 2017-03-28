@@ -206,8 +206,8 @@ public:
     //print each value and mapping
     unordered_set<kmer_t>::iterator i;
     for (i = kmers.begin(); i!= kmers.end(); ++i) {
-       BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k) << " maps to "
-       << f(*i);
+      //       BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k) << " maps to "
+      //       << f(*i);
     }
 
     //initialize IN, OUT to zero (false)
@@ -240,31 +240,31 @@ public:
       while (index1 + k < read.size()) {
 	//get a k + 1 - mer
 	kplusone = read.substr( index1, k + 1 );
-        BOOST_LOG_TRIVIAL(debug) << "Read in k+1-mer " << kplusone;
+	//        BOOST_LOG_TRIVIAL(debug) << "Read in k+1-mer " << kplusone;
 	add_edge( kplusone );
 	++index1;
       }
     }
 
 
-    BOOST_LOG_TRIVIAL(debug) << "Printing IN ...";
+   //    BOOST_LOG_TRIVIAL(debug) << "Printing IN ...";
     for (int i = 0; i < IN.size(); i++) {
         if (IN[i].size() == 4) {
-           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << IN[i][0] << ", "
-              << IN[i][1] << ", "
-              << IN[i][2] << ", " << IN[i][3];
+	  //           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << IN[i][0] << ", "
+	  //              << IN[i][1] << ", "
+	  //              << IN[i][2] << ", " << IN[i][3];
         }
         else {
-           BOOST_LOG_TRIVIAL(error) << "IN does not have the correct dimensions.";
+	  BOOST_LOG_TRIVIAL(error) << "IN does not have the correct dimensions.";
         }
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "Printing OUT ...";
+    //    BOOST_LOG_TRIVIAL(debug) << "Printing OUT ...";
     for (int i = 0; i < OUT.size(); i++) {
         if (OUT[i].size() == 4) {
-           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << OUT[i][0] << ", "
-              << OUT[i][1] << ", "
-              << OUT[i][2] << ", " << OUT[i][3];
+	  //           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << OUT[i][0] << ", "
+	  //              << OUT[i][1] << ", "
+	  //              << OUT[i][2] << ", " << OUT[i][3];
         }
         else {
            BOOST_LOG_TRIVIAL(error) << "OUT does not have the correct dimensions.";
@@ -279,8 +279,8 @@ public:
     // figure out the two kmers
     kmer_t u,v;
     split_edge( edge, u, v );
-    BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, k)
-        << " to " << get_kmer_str(v, k);
+    //    BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, k)
+    //        << " to " << get_kmer_str(v, k);
 
     // get which column in sigma to put in (corresponds to which letter is the first/last)
     // number 0..3 represent each alphabet letter
@@ -315,12 +315,12 @@ public:
 
   // Given a kmer, decide if it is one in our graph
   bool detect_membership( kmer_t m ) {
-    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
+    //    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
 
     // The hash value of our kmer
     u_int64_t hash = f(m);
 
-    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
+    //    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
 
     // If it is a real kmer value, it must map to 0..1-n
     if (hash >= n)
@@ -331,6 +331,8 @@ public:
 
     //number of times we have traveled in the tree
     unsigned hopcount = 0;
+    bool in;    //true = IN, false = OUT
+    unsigned letter; //needed to confirm edge from parent's side
     
     // fn is where we are in the tree. Keep going until we know its kmer value.
     while ( !(fn.is_stored) ) {
@@ -338,21 +340,40 @@ public:
       if (hopcount > 3*alpha + 1)
 	return false; //we have encountered a cycle in our attempt to travel to a root
 	
-      // deduce the parent's kmer
-      m = fn.getNext(m, k); 
+      //do we progress with IN or OUT
+      in = fn.INorOUT;
+      if (in) {
+	//the parent is an IN-neighbor of m
+	//so we need m's last character
+	letter = access_kmer( m, k, k - 1 );
+      } else {
+	//the parent is an OUT-neighbor of m
+	//so we need m's first character
+	letter = access_kmer( m, k, 0 );
+      }
 
+      // deduce the parent's kmer
+      m = fn.getNext(m, k);
+      
       // get the parent's hash
       hash = f(m);
-
-      BOOST_LOG_TRIVIAL(debug) << "... which goes to hash value " << hash;
 
       // hash must be in 0...n-1
       if (hash >= n) return false;
 
+      //confirm the edge from parent side
+      if (in) {
+	if (!(OUT[ hash ][ letter ]))
+	  return false;
+      } else {
+	if (!(IN[ hash ][ letter ]))
+	  return false;
+      }
+      
       fn = myForest.nodes[hash];
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, k) << " is deduced";
+    //    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, k) << " is deduced";
 
     // now we have a forest node that we have the kmer of stored
     // So we just have to test if it is accurate or not
@@ -389,8 +410,8 @@ public:
       kmer_t root = *kmers.begin();
       store( root );
 
-      BOOST_LOG_TRIVIAL(debug) << "Building forest from root " + get_kmer_str(root, k);
-      BOOST_LOG_TRIVIAL(debug) << "Forest size, n " << myForest.nodes.size() << ' ' << n;
+      //      BOOST_LOG_TRIVIAL(debug) << "Building forest from root " + get_kmer_str(root, k);
+      //      BOOST_LOG_TRIVIAL(debug) << "Forest size, n " << myForest.nodes.size() << ' ' << n;
 
       // We have visited root
       move_kmer( kmers, visited_mers, root );
@@ -418,7 +439,7 @@ public:
         // Next k-mer to visit neighbors of
 	kmer_t c = Q.front();
 	Q.pop();
-        BOOST_LOG_TRIVIAL(debug) << "Visiting neighbors of node " + get_kmer_str(c, k);
+	//        BOOST_LOG_TRIVIAL(debug) << "Visiting neighbors of node " + get_kmer_str(c, k);
 
         // Neighbors of c
 	get_neighbors( c, neis, v_inorout );
@@ -428,12 +449,12 @@ public:
 	
 	for (unsigned ii = 0; ii < neis.size(); ++ii) {
 	  kmer_t m = neis[ii]; //this is 'n' in the pseudocode
-	  BOOST_LOG_TRIVIAL(debug) << "Checking neighbor m: " + get_kmer_str(m, k);
+	  //	  BOOST_LOG_TRIVIAL(debug) << "Checking neighbor m: " + get_kmer_str(m, k);
 	  if ( visited_mers.find( m ) == visited_mers.end() ) {
 	    //haven't visited m yet
 	    Q.push(m);
 	    move_kmer( kmers, visited_mers, m );
-	    BOOST_LOG_TRIVIAL(debug) << "Number of kmers visited: " << visited_mers.size();
+	    //	    BOOST_LOG_TRIVIAL(debug) << "Number of kmers visited: " << visited_mers.size();
 	    u_int64_t f_m = f(m); //save these values so we don't have to recompute all the time
 	    u_int64_t f_c = f(c);
  	    p[ f_m ] = c;
@@ -478,22 +499,22 @@ public:
     neighbor_kmers.clear();
     v_inorout.clear();
 
-    BOOST_LOG_TRIVIAL(debug) << "Finding neighbors of " + get_kmer_str(c, k);
+    //    BOOST_LOG_TRIVIAL(debug) << "Finding neighbors of " + get_kmer_str(c, k);
 
     // Need hash value of our kmer to look into IN and OUT
     u_int64_t fc = f(c);
-    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << get_kmer_str(c, k  ) << ' ' << fc;
-    BOOST_LOG_TRIVIAL(trace) << "Size of IN,OUT: " << IN[ fc ].size() << ' ' << OUT[ fc ].size();
+    //    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << get_kmer_str(c, k  ) << ' ' << fc;
+    //    BOOST_LOG_TRIVIAL(trace) << "Size of IN,OUT: " << IN[ fc ].size() << ' ' << OUT[ fc ].size();
     for ( unsigned ii = 0; ii < 4; ++ii ) {
       if ( IN[ fc ][ ii ] ) {
 	//have in-neighbor with letter
 	Letter letter ( ii );
-	BOOST_LOG_TRIVIAL(trace) << "letter: " << ii << ' ' << letter.getNum();
+	//	BOOST_LOG_TRIVIAL(trace) << "letter: " << ii << ' ' << letter.getNum();
 	// Deduce that kmer by tacking letter at the beginning of c
 	kmer_t e = pushOnFront(c, letter, k);
 	neighbor_kmers.push_back( e );
 
-	BOOST_LOG_TRIVIAL(trace) << "neighbor: " + get_kmer_str(e, k);
+	//	BOOST_LOG_TRIVIAL(trace) << "neighbor: " + get_kmer_str(e, k);
 	
 	v_inorout.push_back( true ); //true=IN
       }
@@ -510,9 +531,9 @@ public:
       }
     }
 
-    BOOST_LOG_TRIVIAL(trace) << "Neighbors found: ";
+    //    BOOST_LOG_TRIVIAL(trace) << "Neighbors found: ";
     for (unsigned i = 0; i < neighbor_kmers.size(); ++i) {
-      BOOST_LOG_TRIVIAL(trace) << i << ' ' << get_kmer_str( neighbor_kmers[i], k ) << " is an "<<	v_inorout[ i ] << " neighbor.";
+      //      BOOST_LOG_TRIVIAL(trace) << i << ' ' << get_kmer_str( neighbor_kmers[i], k ) << " is an "<<	v_inorout[ i ] << " neighbor.";
       
     }
   }
@@ -565,7 +586,7 @@ void access_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
 // Going backwards along an edge (the relationship comes from orig's IN).
 // For example, orig = AGCT, then it returns GAGC
 kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
-  BOOST_LOG_TRIVIAL(trace) << "pushOnFront " + get_kmer_str(orig, k) << ' ' << letter.getNum();
+  //  BOOST_LOG_TRIVIAL(trace) << "pushOnFront " + get_kmer_str(orig, k) << ' ' << letter.getNum();
   // Get the kmer with back pushed off orig
   kmer_t new_kmer = orig >> 2;
 
@@ -578,7 +599,7 @@ kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
 // Going forward along an edge (the relationship comes from orig's OUT).
 // For example, orig = AGCT, then it returns GAGC
 kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned k) {
-  BOOST_LOG_TRIVIAL(trace) << "pushOnBack " + get_kmer_str(orig, k) << ' ' << letter.getNum();
+  //  BOOST_LOG_TRIVIAL(trace) << "pushOnBack " + get_kmer_str(orig, k) << ' ' << letter.getNum();
   // Get the kmer with front pushed off orig
   kmer_t new_kmer = orig << 2;
   set_kmer( new_kmer, k, k - 1, letter);
