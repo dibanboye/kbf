@@ -185,6 +185,18 @@ public:
   generate_hash f; //hash function that takes each kmer to 1..n
   forest myForest; //the forest (described in paper)
   unsigned alpha;   //each tree in forest is guaranteed to be of height alpha to 3alpha
+
+  u_int64_t get_size() {
+    u_int64_t ssize = 0;
+
+    //Compute size of IN, OUT
+    
+    u_int64_t sizeofrow = sizeof( IN[0] ) + sizeof( bool ) * 4;
+    u_int64_t sizeofIN = sizeofrow * n;
+    u_int64_t sizeofINOUT = 2*sizeofIN;
+    u_int64_t sizeofFnode = 4 * sizeof(bool);
+    
+  }
   
   FDBG( vector< string >& reads, 
 	unordered_set<kmer_t>& kmers,
@@ -220,8 +232,20 @@ public:
     BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
     add_edges( reads, b_verify, os );
 
+    BOOST_LOG_TRIVIAL(info) << "Shrinking IN and OUT ...";
+    //    for (unsigned i = 0; i < n; ++i) {
+    //      for (unsigned j = 0; j < 4; ++j) {
+    //	IN[i][j].shrink_to_fit();
+    //	OUT[i][j].shrink_to_fit();
+    //      }
+    //    }
+    IN.shrink_to_fit();
+    OUT.shrink_to_fit();
+    
     //Perform the forest construction
     construct_forest( kmers, k*2 ); //alpha = k * lg(sigma)
+
+    myForest.nodes.shrink_to_fit();
   }
 
   /**

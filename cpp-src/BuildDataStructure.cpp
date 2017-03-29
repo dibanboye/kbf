@@ -8,8 +8,8 @@
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
-
-
+#include <chrono>
+#include "proc_size.cpp"
 
 #include "FDBG.cpp"
 #include "KBFUtil.hpp"
@@ -49,27 +49,21 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(info) << "Read in " << kmers.size() << " kmers of size " << k;
  
    // print out the kmers 
-   unordered_set<kmer_t>::iterator i; 
-   for (i = kmers.begin(); i != kmers.end(); ++i) {
-      BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k);
-   }
+   //   unordered_set<kmer_t>::iterator i; 
+   //   for (i = kmers.begin(); i != kmers.end(); ++i) {
+   //      BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k);
+   //   }
  
    BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
+   auto start = std::chrono::system_clock::now();
    FDBG Graph( reads, kmers, kmers.size(), k, false );
-
-   unordered_set<kmer_t> kmers2 = getKmers(reads, k);
-
-   for (unordered_set<kmer_t>::iterator it1 = kmers2.begin();
-     	it1 != kmers2.end();
-     	++it1) {
-     if (!Graph.detect_membership( *it1 )) {
-       BOOST_LOG_TRIVIAL(fatal) << "Forest not detecting member k-mer " << get_kmer_str( *it1, k);
-       exit( 1 );
-     }
-   }
-
-   BOOST_LOG_TRIVIAL(info) << "Forest correctly detects all member k-mers.";
+   auto end = std::chrono::system_clock::now();
+   std::chrono::duration<double> elapsed_seconds = end-start;
    
+   BOOST_LOG_TRIVIAL(info) << "Data structure built in " << elapsed_seconds.count() << " s";
+   reads.clear();
+   BOOST_LOG_TRIVIAL(info) << "Size(bytes):" << getCurrentRSS();
+   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << getCurrentRSS() / 1024.0;
    return 0;
 }
 
