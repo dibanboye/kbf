@@ -133,7 +133,7 @@ vector<kmer_t> sample_kmers(unordered_set<kmer_t> & kmer_set, int const set_size
 int main(int argc, char* argv[]) {
    // Set debug level
    boost::log::core::get()->set_filter(boost::log::trivial::severity
-      >= boost::log::trivial::info);
+      >= boost::log::trivial::debug);
   
     cerr << "==============================" << endl;
     cerr << "Starting Sequence Bloom Filter" << endl;

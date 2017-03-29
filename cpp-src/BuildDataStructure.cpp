@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 
    // Set debug level
    boost::log::core::get()->set_filter(boost::log::trivial::severity
-      >= boost::log::trivial::debug);
+      >= boost::log::trivial::trace);
 
    BOOST_LOG_TRIVIAL(info) << "Beginning to build data structure ...";   
 

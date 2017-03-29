@@ -23,7 +23,7 @@ class generate_hash {
 
     public:
         u_int64_t n_kmer; //the number of k-mers 
-        u_int64_t k_kmer; //the lengths of the k-mers
+        unsigned k_kmer; //the lengths of the k-mers (max 32)
 
         vector<string> kmer_data; // pointer to kmer_data TODO: should read from file
 
@@ -43,7 +43,7 @@ class generate_hash {
         /**
          * Create hash function out of n k-mers of length k
          */
-        generate_hash( unordered_set< kmer_t >& kmers , int n , int k ) {
+        generate_hash( unordered_set< kmer_t >& kmers , u_int64_t n , unsigned k ) {
 	  std::srand(std::time(NULL));
 	  
 	  construct_hash_function( kmers,  n,  k );
@@ -54,7 +54,7 @@ class generate_hash {
 	  std::srand(std::time(NULL));
 	}
 
-	void construct_hash_function( unordered_set< kmer_t >& kmers , int n , int k ) {
+	void construct_hash_function( unordered_set< kmer_t >& kmers , u_int64_t n , unsigned k ) {
 	  this->n_kmer = n; // number of k-mers
 	  this->k_kmer = k; // length of each k-mer
 	  
@@ -99,7 +99,9 @@ class generate_hash {
             u_int64_t v; // holder for KRH value
 
             // prime we will mod out by
-            u_int64_t P = getPrime(max((u_int64_t)this->sigma, (u_int64_t)k_kmer*n_kmer*n_kmer));
+	    const u_int64_t tau = 1;
+	    BOOST_LOG_TRIVIAL(debug) << "Minimum prime: " << tau*k_kmer*n_kmer*n_kmer;
+            u_int64_t P = getPrime(max((u_int64_t)this->sigma, (u_int64_t)tau*k_kmer*n_kmer*n_kmer));
 
             // Find satisfied base and prime combination
             //memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t));
@@ -114,7 +116,7 @@ class generate_hash {
 		      it1 = kmers.begin(); it1 != kmers.end();
 		    ++it1 ) {
 		v = generate_KRHash_val( *it1, k_kmer, r, P);
-
+		//		BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
 		if (this->KRHash.find(v) == this->KRHash.end())
 		  {
 		    // this is a new value   
@@ -122,7 +124,7 @@ class generate_hash {
 		  }
 		else // not injective
 		  {
-                    BOOST_LOG_TRIVIAL(debug) << "Base " << r << " with prime "
+                    BOOST_LOG_TRIVIAL(trace) << "Base " << r << " with prime "
                        << P << " failed injectivity.";
 		    this->KRHash.clear(); // clear it out and start over
 		    f_injective = false;
@@ -141,25 +143,43 @@ class generate_hash {
 	}
         
 
+	/*
+	 * Computes powers with u_int64_t and integer exponents
+	 */
+	u_int64_t mypower( const u_int64_t& base, unsigned exponent ) {
+	  u_int64_t rvalue( 1 );
+	  while (exponent > 0) {
+	    rvalue *= base;
+	    --exponent;
+	  }
+
+	  return rvalue;
+	}
+
+	
         /**
          * Given a kmer, find out its KRH using base r and prime P
          */
         u_int64_t generate_KRHash_val(const kmer_t& kmer,
-				      const int k, const int r, int P){
-            
+				      const unsigned& k,
+				      const u_int64_t& r,
+				      const u_int64_t& P){
+	  //	  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
             u_int64_t val = 0; // what will be the KRH value
 
             // go through each bp and add value
             for (int i = k - 1;
-		 i >= 0; i--)
+		 i >= 0;
+		 i--)
             {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
-	      val += access_kmer( kmer, static_cast<unsigned>(k), static_cast<unsigned>(i)) * pow(r, i);
+	      val += access_kmer( kmer, k, static_cast<unsigned>(i)) *
+		mypower(r, static_cast<unsigned>(i + 1) );
             }
 
             val = val % P;
 
-            return u_int64_t(val);
+            return val;
         }
 
         /**
