@@ -8,9 +8,11 @@
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
-#include "KBFUtil.hpp"
-#include "FDBG.cpp"
 
+
+
+#include "FDBG.cpp"
+#include "KBFUtil.hpp"
 
 using namespace std;
 
@@ -23,6 +25,11 @@ int main(int argc, char* argv[]) {
    boost::log::core::get()->set_filter(boost::log::trivial::severity
       >= boost::log::trivial::trace);
 
+   cout << sizeof( uintmax_t ) << endl;
+
+   uint128_t aa = 0;
+   cout << aa << ' ' << sizeof( aa ) <<  endl;
+   
    BOOST_LOG_TRIVIAL(info) << "Beginning to build data structure ...";   
 
    // Check if the user put in the correct command line arguments

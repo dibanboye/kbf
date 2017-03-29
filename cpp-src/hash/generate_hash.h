@@ -9,6 +9,9 @@
 #include <math.h>
 #include <algorithm>
 #include <unordered_set>
+#include <boost/multiprecision/cpp_int.hpp>
+
+using namespace boost::multiprecision;
 #include "HashUtil.cpp"
 
 using namespace std;
@@ -72,7 +75,7 @@ class generate_hash {
         u_int64_t get_hash_value(const kmer_t& seq)
         {
             u_int64_t krv = generate_KRHash_val(seq, k_kmer, base, Prime);
-            u_int64_t res = this->bphf->lookup(krv);
+            u_int64_t res = this->bphf->lookup(krv); // still need only 64 bits for kmer_t
             return res;
         }
 
@@ -146,10 +149,10 @@ class generate_hash {
 	/*
 	 * Computes powers with u_int64_t and integer exponents
 	 */
-	u_int64_t mypower( const u_int64_t& base, unsigned exponent ) {
-	  u_int64_t rvalue( 1 );
+	uint128_t mypower( const u_int64_t& base, unsigned exponent ) {
+	  uint128_t rvalue( 1 );
 	  while (exponent > 0) {
-	    rvalue *= base;
+	    rvalue *= static_cast< uint128_t >(base);
 	    --exponent;
 	  }
 
@@ -165,7 +168,8 @@ class generate_hash {
 				      const u_int64_t& r,
 				      const u_int64_t& P){
 	  //	  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
-            u_int64_t val = 0; // what will be the KRH value
+	  //use 128 bits to prevent overflow
+	  uint128_t val = 0; // what will be the KRH value
 
             // go through each bp and add value
             for (int i = k - 1;
@@ -173,13 +177,13 @@ class generate_hash {
 		 i--)
             {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
-	      val += access_kmer( kmer, k, static_cast<unsigned>(i)) *
+	      val += static_cast< uint128_t > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
 		mypower(r, static_cast<unsigned>(i + 1) );
             }
 
             val = val % P;
 
-            return val;
+            return static_cast<u_int64_t>(val);
         }
 
         /**
