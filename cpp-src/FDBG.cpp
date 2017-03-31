@@ -313,7 +313,8 @@ public:
   void add_edge( string& edge ) {
 
     // figure out the two kmers
-    kmer_t u,v;
+    kmer_t u = 0;
+    kmer_t v = 0;
     split_edge( edge, u, v );
     //    BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, k)
     //        << " to " << get_kmer_str(v, k);
