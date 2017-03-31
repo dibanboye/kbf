@@ -19,6 +19,11 @@ using namespace std;
 typedef boomphf::SingleHashFunctor<u_int64_t>  hasher_t;
 typedef boomphf::mphf<  u_int64_t, hasher_t  > boophf_t;
 
+//For now, this is our big int class. If we need more than 1024 bits, we can increase
+//LARGE_BITS should be a power of 2
+#define LARGE_BITS 1024
+typedef number<cpp_int_backend< LARGE_BITS, LARGE_BITS, unsigned_magnitude, checked, void> > largeUnsigned;
+
 /**
  * Take in a set of k-mers, generate a hash function
  */
@@ -42,7 +47,7 @@ class generate_hash {
 	 * Using 128 bit type to prevent overflow
 	 * Stores powers in order r^1, r^2, ..., r^k
 	 */
-	vector< uint128_t > powersOfR; 
+	vector< largeUnsigned > powersOfR; 
 
         boophf_t* bphf; //MPHF we will generate
 
@@ -81,7 +86,7 @@ class generate_hash {
 	 * we can precompute the powers of r
 	 */
 	void precomputePowers() {
-	  uint128_t ri;
+	  largeUnsigned ri;
 	  powersOfR.clear();
 	  //NEED 1 to k. Not 0 to (k - 1)
 	  for (unsigned i = 1; i <= k_kmer; ++i) {
@@ -172,10 +177,10 @@ class generate_hash {
 	/*
 	 * Computes powers with u_int64_t and integer exponents
 	 */
-	uint128_t mypower( const u_int64_t& base, unsigned exponent ) {
-	  uint128_t rvalue( 1 );
+	largeUnsigned mypower( const u_int64_t& base, unsigned exponent ) {
+	  largeUnsigned rvalue( 1 );
 	  while (exponent > 0) {
-	    rvalue *= static_cast< uint128_t >(base);
+	    rvalue *= static_cast< largeUnsigned >(base);
 	    --exponent;
 	  }
 
@@ -191,7 +196,7 @@ class generate_hash {
 				      const u_int64_t& P){
 	  //	  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
 	  //use 128 bits to prevent overflow
-	  uint128_t val = 0; // what will be the KRH value
+	  largeUnsigned val = 0; // what will be the KRH value
 
             // go through each bp and add value
 	  for (unsigned i = 0;
@@ -199,7 +204,7 @@ class generate_hash {
 	       ++i) {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
 	      val +=
-		static_cast< uint128_t > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
+		static_cast< largeUnsigned > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
 		powersOfR[i]; //powersOfR[i] = r^{i + 1}
 	  }
 
@@ -212,11 +217,11 @@ class generate_hash {
          * Given a kmer, find out its KRH using base r and prime P
 	 * HOWEVER: does not mod out by P. So returns 128 bit unsigned
          */
-        uint128_t generate_KRHash_raw(const kmer_t& kmer,
+        largeUnsigned generate_KRHash_raw(const kmer_t& kmer,
 				      const unsigned& k ) {
 	  //	  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
 	  //use 128 bits to prevent overflow
-	  uint128_t val = 0; // what will be the KRH value
+	  largeUnsigned val = 0; // what will be the KRH value
 
             // go through each bp and add value
 	  for (unsigned i = 0;
@@ -224,7 +229,7 @@ class generate_hash {
 	       ++i) {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
 	      val +=
-		static_cast< uint128_t > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
+		static_cast< largeUnsigned > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
 		powersOfR[i]; //powersOfR[i] = r^{i + 1}
 	  }
 
@@ -241,12 +246,29 @@ class generate_hash {
 	 *
 	 */
 	void update_KRHash_val_OUT
-	  ( uint128_t& KR_val,       //KR hash of source kmer
+	  ( largeUnsigned& KR_val,       //KR hash of source kmer
 	    const unsigned& first,   //character at front of source k-mer
 	    const unsigned& last ) { //last character in target k-mer
-	  KR_val = KR_val - first * r;
-	  KR_val = KR_val / r;
-	  KR_val = KR_val + last * powersOfR[ k_kmer - 1 ]; // last * r^k
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT...";
+	   //	   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
+
+	   //	   largeUnsigned before_div = KR_val;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Value before division: " << before_div;
+	   
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Division check: " << (KR_val * static_cast< largeUnsigned >( r ) == before_div );
+
+	   //	   KR_val = before_div;
+	   //largeUnsigned q;
+	   //	   largeUnsigned rem;
+	   //	   divide_qr( KR_val, static_cast< largeUnsigned >( r ),  q, rem );
+
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Division check 2: " << (q * static_cast< largeUnsigned >( r ) == before_div );
+
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Remainder: " << rem;
+	   KR_val = KR_val / static_cast< largeUnsigned >( r );	   
+	   KR_val = KR_val - static_cast< largeUnsigned >( first );
+	   KR_val = KR_val + static_cast< largeUnsigned >(last) * powersOfR[ k_kmer - 1 ]; // last * r^k
 	}
 
 	/*
@@ -255,10 +277,13 @@ class generate_hash {
 	 * target k-mer is IN neighbor of source k-mer
 	 */
 	void update_KRHash_val_IN
-	  ( uint128_t& KR_val,       //KR hash of source kmer
+	  ( largeUnsigned& KR_val,       //KR hash of source kmer
 	    const unsigned& first,   //character at front of target k-mer
 	    const unsigned& last ) { //last character in source k-mer
-
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN...";
+	   //	   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
+	   
 	  KR_val = KR_val - last * powersOfR[ k_kmer - 1 ]; // last * r^k
 	  KR_val = KR_val * r;
 	  KR_val = KR_val + first * r;
@@ -269,8 +294,8 @@ class generate_hash {
 	 * Looks up the minimal perfect hash value, given the Karp-Rabin (raw value)
 	 * KR raw value means not modded out by the prime yet.
 	 */
-	u_int64_t perfect_from_KR( const uint128_t& KR_val ) {
-	   uint128_t KR2 = KR_val % Prime;
+	u_int64_t perfect_from_KR( const largeUnsigned& KR_val ) {
+	   largeUnsigned KR2 = KR_val % Prime;
 	   return this->bphf->lookup( static_cast< u_int64_t >(KR2) );
 	}
 
