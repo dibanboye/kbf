@@ -316,10 +316,7 @@ public:
   // u is the beginning, v is the end
   void split_edge( const kmer_t& edge, kmer_t& u, kmer_t& v ) {
 
-     //BOOST_LOG_TRIVIAL(debug) << "2: " << u;
      push_last_letter(edge, u);
-     //BOOST_LOG_TRIVIAL(debug) << "EDGE: " << edge;
-     //BOOST_LOG_TRIVIAL(debug) << "3: " << u;
 
      remove_front_letter(edge, v, this->k);
 
