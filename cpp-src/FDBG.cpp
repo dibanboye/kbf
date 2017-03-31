@@ -394,7 +394,9 @@ public:
     //    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
 
     // The hash value of our kmer
-    u_int64_t hash = f(m);
+    // Need to keep track of KRval, so it can be updated
+    u_int64_t KR_val = f.generate_KRHash_val( m, k, f.Prime ) ;
+    u_int64_t hash = f.perfect_from_KR( KR_val );
 
     //    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
 
@@ -422,6 +424,7 @@ public:
 	//the parent is an IN-neighbor of m
 	//so we need m's last character
 	letter = access_kmer( m, k, k - 1 );
+
       } else {
 	//the parent is an OUT-neighbor of m
 	//so we need m's first character
@@ -432,7 +435,17 @@ public:
       m = fn.getNext(m, k);
       
       // get the parent's hash
-      hash = f(m);
+      if (in) {
+	unsigned letter_front_parent = access_kmer( m, k, 0 );
+	KR_val = f.update_KRHash_val_IN( KR_val, letter_front_parent, letter );
+	hash = f.perfect_from_KR( KR_val );
+      } else {
+	unsigned letter_back_parent = access_kmer( m, k, k - 1 );
+	KR_val = f.update_KRHash_val_OUT( KR_val, letter, letter_back_parent );
+	hash = f.perfect_from_KR( KR_val );
+      }
+      //  	hash = f(m); <----left over from old inefficient hashing
+	
 
       // hash must be in 0...n-1
       if (hash >= n) return false;

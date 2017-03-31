@@ -109,7 +109,6 @@ class generate_hash {
 	}
 					       
 
-    private:
         // Task4: generate_KRHash_val
         // data is a k-mer
         // k is the length of the k-mer
@@ -207,6 +206,53 @@ class generate_hash {
 
 	  return static_cast<u_int64_t>(val);
         }
+
+	/*
+	 * This function takes as input a Karp-Rabin value (KR_val)
+	 * Then updates it by subtracting the value from 'first' character source kmer
+	 * Then dividing by r (at this point, it has shifted last k-1 characters up)
+	 * Finally adding the last term corresponding to the 'last' character
+	 *
+	 * target k-mer is OUT neighbor of source k-mer
+	 *
+	 */
+	u_int64_t update_KRHash_val_OUT
+	  ( u_int64_t& KR_val_in,       //KR hash of source kmer
+	    const unsigned& first,   //character at front of source k-mer
+	    const unsigned& last ) { //last character in target k-mer
+	  uint128_t KR_val = KR_val_in;
+	  KR_val = KR_val - first * r;
+	  KR_val = KR_val / r;
+	  KR_val = KR_val + last * powersOfR[ k_kmer - 1 ]; // last * r^k
+	  KR_val = KR_val % Prime;
+	  return static_cast< u_int64_t >( KR_val);
+	}
+
+	/*
+	 * This function takes as input a Karp-Rabin value (KR_val)
+	 *
+	 * target k-mer is IN neighbor of source k-mer
+	 */
+	u_int64_t update_KRHash_val_IN
+	  ( u_int64_t& KR_val_in,       //KR hash of source kmer
+	    const unsigned& first,   //character at front of target k-mer
+	    const unsigned& last ) { //last character in source k-mer
+	  uint128_t KR_val = KR_val_in;
+	  KR_val = KR_val - last * powersOfR[ k_kmer - 1 ]; // last * r^k
+	  KR_val = KR_val * r;
+	  KR_val = KR_val + first * r;
+	  KR_val = KR_val % Prime;
+	  return static_cast< u_int64_t >( KR_val);
+	}
+
+	
+	/*
+	 * Looks up the minimal perfect hash value, given the Karp-Rabin
+	 *
+	 */
+	u_int64_t perfect_from_KR( const u_int64_t& KR_val ) {
+	  return this->bphf->lookup( KR_val );
+	}
 
         /**
          * Build a minimal perfect hash function on the set of integers that our kmers are
