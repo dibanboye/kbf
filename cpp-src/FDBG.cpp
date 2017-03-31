@@ -12,6 +12,9 @@ using namespace std;
 
 class Letter; //needed for set_kmer declaration
 
+kmer_t getMaxVal(unsigned);
+void push_last_letter(const kmer_t&, kmer_t&);
+void remove_front_letter(const kmer_t&, kmer_t&, const unsigned&);
 void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c );
 void set_kmer( kmer_t& mer, unsigned k, unsigned i, char c );
 kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned);
@@ -180,7 +183,7 @@ public:
   vector< vector< bool > > IN; //size n x sigma, in edges
   vector< vector< bool > > OUT; //size n x sigma, out edges
   unsigned sigma; //alphabet-size. For now, only 4 is supported
-  unsigned n; //number of nodes in graph
+  u_int64_t n; //number of nodes in graph
   unsigned k; //length of each mer (string in alphabet)
   generate_hash f; //hash function that takes each kmer to 1..n
   forest myForest; //the forest (described in paper)
@@ -210,9 +213,9 @@ public:
     return res;
   }
   
-  FDBG( vector< string >& reads, 
-	unordered_set<kmer_t>& kmers,
-	unsigned n, //number of kmers
+  FDBG( unordered_set<kmer_t>& kmers,
+        unordered_set<kmer_t>& edgemers,
+	u_int64_t n, //number of kmers
 	unsigned k, //mer size
 	bool b_verify = false, //if true, print summary
 	ostream& os = cout
@@ -222,17 +225,9 @@ public:
     
     this->n = n;
     this->k = k;
-    
+   
     //construct hash function f
     f.construct_hash_function( kmers, n, k );
-
-    //debugging
-    //print each value and mapping
-    unordered_set<kmer_t>::iterator i;
-    for (i = kmers.begin(); i!= kmers.end(); ++i) {
-      //       BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k) << " maps to "
-      //       << f(*i);
-    }
 
     //initialize IN, OUT to zero (false)
     BOOST_LOG_TRIVIAL(info) << "Initializing IN and OUT.";
@@ -240,9 +235,10 @@ public:
     IN.assign( this->n, vzero );
     OUT.assign( this->n, vzero );
 
-    //add edges to IN and OUT using reads
+    //add edges to IN and OUT
     BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
-    add_edges( reads, b_verify, os );
+
+    add_edges( edgemers);
 
     BOOST_LOG_TRIVIAL(info) << "Shrinking IN and OUT ...";
     //    for (unsigned i = 0; i < n; ++i) {
@@ -253,6 +249,9 @@ public:
     //    }
     IN.shrink_to_fit();
     OUT.shrink_to_fit();
+
+    // For debugging, print IN and OUT given kmers
+    // printINandOUT(kmers);
     
     //Perform the forest construction
     construct_forest( kmers, k*2 ); //alpha = k * lg(sigma)
@@ -261,51 +260,65 @@ public:
   }
 
   /**
-   * Add edges to IN and OUT using reads (not kmers)
+   * Add edges to IN and OUT using K+1-mers
    */
-  void add_edges( vector< string >& reads, bool b_verify = false, ostream& os = cout ) {
-    string read;
-    string kplusone;
- 
-   //for each read, get k+1 length pieces that we can
-   //figure out an edge between two kmers
-   for (unsigned i = 0; i < reads.size(); ++i) {
-      read = reads[i];
-      unsigned index1 = 0;
+  void add_edges( unordered_set<kmer_t>& edges) {
 
-      while (index1 + k < read.size()) {
-	//get a k + 1 - mer
-	kplusone = read.substr( index1, k + 1 );
-	//        BOOST_LOG_TRIVIAL(debug) << "Read in k+1-mer " << kplusone;
-	add_edge( kplusone );
-	++index1;
-      }
+    unordered_set<kmer_t>::iterator i;
+    for (i = edges.begin(); i!= edges.end(); ++i) {
+        add_edge(*i);
     }
 
+  }
 
-   //    BOOST_LOG_TRIVIAL(debug) << "Printing IN ...";
-    for (int i = 0; i < IN.size(); i++) {
-        if (IN[i].size() == 4) {
-	  //           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << IN[i][0] << ", "
-	  //              << IN[i][1] << ", "
-	  //              << IN[i][2] << ", " << IN[i][3];
-        }
-        else {
-	  BOOST_LOG_TRIVIAL(error) << "IN does not have the correct dimensions.";
-        }
+  void add_edge(const kmer_t& edge ) {
+
+    // figure out the two kmers
+    kmer_t u = 0;
+    kmer_t v = 0;
+
+    split_edge( edge, u, v );
+
+    // get which column in sigma to put in (corresponds to which letter is the first/last)
+    // number 0..3 represent each alphabet letter
+    unsigned first, last;
+    first = access_kmer( u, k, 0 );
+    last = access_kmer( v, k, k - 1 );
+
+    u_int64_t hash_u = f(u);
+    u_int64_t hash_v = f(v);
+
+    if (hash_u >= this->n) {
+      BOOST_LOG_TRIVIAL(error) << "Edge " << get_kmer_str(edge, this->k + 1)
+        <<  " has produced kmer "
+        << get_kmer_str(u, this->k)
+        << "("<< u << ")"
+        << " with invalid hash function value "
+        << hash_u;
     }
 
-    //    BOOST_LOG_TRIVIAL(debug) << "Printing OUT ...";
-    for (int i = 0; i < OUT.size(); i++) {
-        if (OUT[i].size() == 4) {
-	  //           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << OUT[i][0] << ", "
-	  //              << OUT[i][1] << ", "
-	  //              << OUT[i][2] << ", " << OUT[i][3];
-        }
-        else {
-           BOOST_LOG_TRIVIAL(error) << "OUT does not have the correct dimensions.";
-        }
+    if (hash_v >= this->n) {
+      BOOST_LOG_TRIVIAL(error) << "Edge " << get_kmer_str(edge, this->k + 1)
+        <<  " has produced kmer "
+        << get_kmer_str(v, this->k)
+        << "("<< v << ")"
+        << " with invalid hash function value "
+        << hash_v;
     }
+
+    OUT[ hash_u ][ last ] = true;
+    IN[ hash_v ][ first ] = true;
+
+    
+  }
+
+  // Take a k+1-mer and split into beginning and end k-mers
+  // u is the beginning, v is the end
+  void split_edge( const kmer_t& edge, kmer_t& u, kmer_t& v ) {
+
+     push_last_letter(edge, u);
+
+     remove_front_letter(edge, v, this->k);
 
   }
 
@@ -346,39 +359,7 @@ public:
     return;
   }
   
-  //add edge implied by the k+1-mer (between the first k and last k characters).
-  void add_edge( string& edge ) {
 
-    // figure out the two kmers
-    kmer_t u = 0;
-    kmer_t v = 0;
-    split_edge( edge, u, v );
-    //    BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, k)
-    //        << " to " << get_kmer_str(v, k);
-
-    // get which column in sigma to put in (corresponds to which letter is the first/last)
-    // number 0..3 represent each alphabet letter
-    unsigned first, last;
-    first = access_kmer( u, k, 0 );
-    last = access_kmer( v, k, k - 1 );
-
-    // set edge in IN/OUT 
-    OUT[ f(u) ][ last ] = true;
-    IN[ f(v) ][ first ] = true;
-
-    
-  }
-
-  // Take a k+1-mer and split into beginning and end k-mers
-  void split_edge( string& edge, kmer_t& u, kmer_t& v ) {
-    unsigned index = 1;
-    while (index <= k) {
-      set_kmer( u, k, index - 1, edge[ index - 1 ] );
-      set_kmer( v, k, index - 1, edge[ index ] );
-
-      ++index;
-    }
-  }
 
   void print_matrix( vector< vector< bool > >& mat, ostream& os = cout ) {
     for (unsigned i = 0; i < mat.size(); ++i) {
@@ -740,6 +721,54 @@ public:
     visited.insert( mer );
   }
 
+  // Print IN and OUT with the Kmer strings down the side, and the characters on the top
+  void printINandOUT(unordered_set<kmer_t>& kmers) {
+ 
+    cout << setw(30) << "===== IN =====" << endl << endl;
+ 
+    cout << setw(10) << ""; 
+    cout << setw(5) << "A";
+    cout << setw(5) << "C";
+    cout << setw(5) << "G";
+    cout << setw(5) << "T" << endl;
+
+    unordered_set<kmer_t>::iterator i;
+    for (i = kmers.begin(); i != kmers.end(); ++i) {
+        cout << setw(10) << get_kmer_str(*i, this->k);
+
+        u_int64_t hash = this->f(*i); 
+        cout << setw(5) << IN[hash][0];
+        cout << setw(5) << IN[hash][1];
+        cout << setw(5) << IN[hash][2];
+        cout << setw(5) << IN[hash][3];
+        cout << endl;
+    } 
+
+    cout << endl;
+    cout << setw(30) << "===== OUT =====" << endl << endl;
+ 
+    cout << setw(10) << ""; 
+    cout << setw(5) << "A";
+    cout << setw(5) << "C";
+    cout << setw(5) << "G";
+    cout << setw(5) << "T" << endl;
+
+    for (i = kmers.begin(); i != kmers.end(); ++i) {
+        cout << setw(10) << get_kmer_str(*i, this->k);
+
+        u_int64_t hash = this->f(*i); 
+        cout << setw(5) << OUT[hash][0];
+        cout << setw(5) << OUT[hash][1];
+        cout << setw(5) << OUT[hash][2];
+        cout << setw(5) << OUT[hash][3];
+        cout << endl;
+    } 
+
+
+  }
+
+
+// END CLASS
 };
 
 /*
@@ -832,6 +861,43 @@ void set_kmer( kmer_t& mer, unsigned k, unsigned i, char c ) {
 
   val = val << 2*(k - i - 1);  //correct bits in i'th spot, zeros elsewhere
   mer = mer | val;
+}
+
+/**
+ * Given a kmer length k, returns the maximum value that kmer
+ * is allowed to be
+ */
+kmer_t getMaxVal(unsigned k) {
+
+   kmer_t max = 0;
+
+   for (int i = 0; i < k; ++i) {
+       max <<= 2;
+       max |= 3;
+   }
+
+   return max;
+}
+
+// Push off the last letter
+void push_last_letter(const kmer_t& edge, kmer_t& u) {
+
+   u = edge >> 2;
+
+}
+
+// Remove front letter from kmer of length k+1
+// To make it a kmer of length k
+void remove_front_letter(const kmer_t& edge, kmer_t& v, const unsigned& k) {
+
+  //v = edge & ~(3 << 2*(k));
+
+  kmer_t op = 3; 
+  op = op << 2*(k);
+  op = ~op;
+  v = edge & op;
+
+  //BOOST_LOG_TRIVIAL(debug) << "Removed front letter of " << edge << " to get " << v;
 }
 
 #endif

@@ -41,6 +41,7 @@ int main(int argc, char* argv[]) {
    // get reads from file
    vector<string> reads = parseFasta(filename); 
    unordered_set<kmer_t> kmers = getKmers(reads, k);
+   unordered_set<kmer_t> edgemers = getKmers(reads, k + 1);
    BOOST_LOG_TRIVIAL(info) << "Read in " << kmers.size() << " kmers of size " << k;
  
    // print out the kmers 
@@ -51,7 +52,7 @@ int main(int argc, char* argv[]) {
  
    BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
    auto start = std::chrono::system_clock::now();
-   FDBG Graph( reads, kmers, kmers.size(), k, false );
+   FDBG Graph( kmers, edgemers, kmers.size(), k, false );
    auto end = std::chrono::system_clock::now();
    std::chrono::duration<double> elapsed_seconds = end-start;
    
