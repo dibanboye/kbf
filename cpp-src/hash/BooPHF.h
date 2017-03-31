@@ -673,11 +673,11 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 		//for debug purposes
 		void print() const
 		{
-			printf("bit array of size %lli: \n",_size);
+			printf("bit array of size %lu: \n",_size);
 			for(uint64_t ii = 0; ii< _size; ii++)
 			{
 				if(ii%10==0)
-					printf(" (%llu) ",ii);
+					printf(" (%lu) ",ii);
 				int val = (_bitArray[ii >> 6] >> (ii & 63 ) ) & 1;
 				printf("%i",val);
 			}
@@ -686,7 +686,7 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 			printf("rank array : size %lu \n",_ranks.size());
 			for (uint64_t ii = 0; ii< _ranks.size(); ii++)
 			{
-				printf("%llu :  %lli,  ",ii,_ranks[ii]);
+				printf("%lu :  %lu,  ",ii,_ranks[ii]);
 			}
 			printf("\n");
 		}
@@ -1023,7 +1023,7 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 
 			uint64_t totalsize =  totalsizeBitset +  _final_hash.size()*42*8 ;  // unordered map takes approx 42B per elem [personal test] (42B with uint64_t key, would be larger for other type of elem)
 
-			printf("Bitarray    %12llu  bits (%.2f %%)   (array + ranks )\n",
+			printf("Bitarray    %12lu  bits (%.2f %%)   (array + ranks )\n",
 				   totalsizeBitset, 100*(float)totalsizeBitset/totalsize);
 			printf("final hash  %12lu  bits (%.2f %%) (nb in final hash %lu)\n",
 				   _final_hash.size()*42*8, 100*(float)(_final_hash.size()*42*8)/totalsize,

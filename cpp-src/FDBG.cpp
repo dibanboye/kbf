@@ -395,14 +395,18 @@ public:
 
     // The hash value of our kmer
     // Need to keep track of KRval, so it can be updated
-    u_int64_t KR_val = f.generate_KRHash_val( m, k, f.Prime ) ;
+    uint128_t KR_val = f.generate_KRHash_raw( m, k ) ;
     u_int64_t hash = f.perfect_from_KR( KR_val );
-
+    
+    BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
+    
     //    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
 
     // If it is a real kmer value, it must map to 0..1-n
-    if (hash >= n)
+    if (hash >= n) {
+       BOOST_LOG_TRIVIAL(debug)  << "Returning false because of hash function blowup" << endl;
       return false;
+    }
 
     // get forest node
     ForestNode fn = myForest.nodes[hash];
@@ -415,8 +419,10 @@ public:
     // fn is where we are in the tree. Keep going until we know its kmer value.
     while ( !(fn.is_stored) ) {
       ++hopcount;
-      if (hopcount > 3*alpha + 1)
-	return false; //we have encountered a cycle in our attempt to travel to a root
+      if (hopcount > 3*alpha + 10) {
+	 //BOOST_LOG_TRIVIAL( debug ) << "Returning false because of hopcount" << endl;
+	 return false; //we have encountered a cycle in our attempt to travel to a root
+      }
 	
       //do we progress with IN or OUT
       in = fn.INorOUT;
@@ -437,26 +443,115 @@ public:
       // get the parent's hash
       if (in) {
 	unsigned letter_front_parent = access_kmer( m, k, 0 );
-	KR_val = f.update_KRHash_val_IN( KR_val, letter_front_parent, letter );
+	f.update_KRHash_val_IN( KR_val, letter_front_parent, letter );
 	hash = f.perfect_from_KR( KR_val );
       } else {
 	unsigned letter_back_parent = access_kmer( m, k, k - 1 );
-	KR_val = f.update_KRHash_val_OUT( KR_val, letter, letter_back_parent );
+	f.update_KRHash_val_OUT( KR_val, letter, letter_back_parent );
 	hash = f.perfect_from_KR( KR_val );
       }
       //  	hash = f(m); <----left over from old inefficient hashing
-	
+      BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
+      BOOST_LOG_TRIVIAL(debug) << "Correct, computed KR_val: "
+			       << f.generate_KRHash_raw( m, k ) << ' ' << KR_val;
 
       // hash must be in 0...n-1
-      if (hash >= n) return false;
-
+      if (hash >= n) {
+	 BOOST_LOG_TRIVIAL(debug) << "Returning false because of hash function blowup" << endl;
+	return false;
+      }
       //confirm the edge from parent side
       if (in) {
-	if (!(OUT[ hash ][ letter ]))
-	  return false;
+	if (!(OUT[ hash ][ letter ])) {
+	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
+	   return false;
+	}
       } else {
-	if (!(IN[ hash ][ letter ]))
+	if (!(IN[ hash ][ letter ])) {
+	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	  return false;
+	}
+      }
+      
+      fn = myForest.nodes[hash];
+    }
+
+    //    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, k) << " is deduced";
+
+    // now we have a forest node that we have the kmer of stored
+    // So we just have to test if it is accurate or not
+    if (m == myForest.stored_mers[hash])
+      return true;
+    else
+      return false;
+  }
+
+   // Given a kmer, decide if it is one in our graph
+   // recomputes hash value at each step, so for testing purposes only
+  bool inefficient_detect_membership( kmer_t m ) {
+    //    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
+
+    // The hash value of our kmer
+    // Need to keep track of KRval, so it can be updated
+     u_int64_t hash = f(m);
+
+    //    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
+
+    // If it is a real kmer value, it must map to 0..1-n
+    if (hash >= n) {
+
+      return false;
+    }
+
+    // get forest node
+    ForestNode fn = myForest.nodes[hash];
+
+    //number of times we have traveled in the tree
+    unsigned hopcount = 0;
+    bool in;    //true = IN, false = OUT
+    unsigned letter; //needed to confirm edge from parent's side
+    
+    // fn is where we are in the tree. Keep going until we know its kmer value.
+    while ( !(fn.is_stored) ) {
+      ++hopcount;
+      if (hopcount > 3*alpha + 10) {
+
+	return false; //we have encountered a cycle in our attempt to travel to a root
+      }
+	
+      //do we progress with IN or OUT
+      in = fn.INorOUT;
+      if (in) {
+	//the parent is an IN-neighbor of m
+	//so we need m's last character
+	letter = access_kmer( m, k, k - 1 );
+
+      } else {
+	//the parent is an OUT-neighbor of m
+	//so we need m's first character
+	letter = access_kmer( m, k, 0 );
+      }
+
+      // deduce the parent's kmer
+      m = fn.getNext(m, k);
+      hash = f(m); 
+
+      // hash must be in 0...n-1
+      if (hash >= n) {
+
+	return false;
+      }
+      //confirm the edge from parent side
+      if (in) {
+	if (!(OUT[ hash ][ letter ])) {
+
+	  return false;
+	}
+      } else {
+	if (!(IN[ hash ][ letter ])) {
+
+	  return false;
+	}
       }
       
       fn = myForest.nodes[hash];

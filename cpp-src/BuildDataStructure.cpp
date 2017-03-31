@@ -25,11 +25,6 @@ int main(int argc, char* argv[]) {
    boost::log::core::get()->set_filter(boost::log::trivial::severity
       >= boost::log::trivial::trace);
 
-   cout << sizeof( uintmax_t ) << endl;
-
-   uint128_t aa = 0;
-   cout << aa << ' ' << sizeof( aa ) <<  endl;
-   
    BOOST_LOG_TRIVIAL(info) << "Beginning to build data structure ...";   
 
    // Check if the user put in the correct command line arguments
@@ -61,7 +56,6 @@ int main(int argc, char* argv[]) {
    std::chrono::duration<double> elapsed_seconds = end-start;
    
    BOOST_LOG_TRIVIAL(info) << "Data structure built in " << elapsed_seconds.count() << " s";
-   reads.clear();
    BOOST_LOG_TRIVIAL(info) << "Size(bytes):" << getCurrentRSS();
    BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << getCurrentRSS() / 1024.0;
 
@@ -71,6 +65,18 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(info) << "Size(bits):" << Graph.getBitSize();
    BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.getBitSize() / static_cast<double>( Graph.n );
    BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.getBitSize() / (8.0 * 1024);
+
+   BOOST_LOG_TRIVIAL(info) << "Membership check...";
+   BOOST_LOG_TRIVIAL(info) << "Number of reads: " << reads.size();
+   kmers = getKmers(reads, k);
+   BOOST_LOG_TRIVIAL(info) << "Read in " << kmers.size() << " kmers of size " << k;
+   unordered_set<kmer_t>::iterator i; 
+   for (i = kmers.begin(); i != kmers.end(); ++i) {
+      BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, k );
+      BOOST_LOG_TRIVIAL(debug ) << Graph.detect_membership( *i ) << ' '
+				<< Graph.inefficient_detect_membership( *i );
+   }
+   
    
    return 0;
 }
