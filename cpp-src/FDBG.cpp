@@ -172,6 +172,46 @@ public:
   }
 };
 
+/**
+ * Class meant to represent IN or OUT
+ * Has n rows, each row has 4 columns
+ */
+class INorOUT {
+
+  private:
+    vector<bool> data; // Holds entire matrix in one vector
+    u_int64_t n; // number of rows
+
+  public:
+
+    INorOUT(u_int64_t n) : data(4*n) {
+      this->n = n;
+    }
+
+    vector<bool>::reference operator()(u_int64_t row, unsigned col) {
+
+        u_int64_t index = 4*row + col;
+
+        return data[index];
+
+    }
+
+    void print() {
+
+        int index = 0;
+
+        for (int i = 0; i < this->n; i++) {
+          for (int j = 0; j < 4; j++) {
+            cout << this->data[index];
+            index++;
+          }
+          cout << endl;
+        }
+
+
+    }
+};
+
 
 /**
  * This class represents the fully dynamic De Bruijn graph
@@ -180,8 +220,8 @@ class FDBG {
 
 public:
 
-  vector< vector< bool > > IN; //size n x sigma, in edges
-  vector< vector< bool > > OUT; //size n x sigma, out edges
+  INorOUT IN;
+  INorOUT OUT;
   unsigned sigma; //alphabet-size. For now, only 4 is supported
   u_int64_t n; //number of nodes in graph
   unsigned k; //length of each mer (string in alphabet)
@@ -194,7 +234,7 @@ public:
 
     //Compute size of IN, OUT
     
-    double sizeofrow = sizeof( IN[0] ) + 4 / 8.0 ; //each row takes half a byte + overhead
+    double sizeofrow = 4*sizeof( IN(0, 0) ) + 4 / 8.0 ; //each row takes half a byte + overhead
     double sizeofIN = sizeofrow * n;
     double sizeofINOUT = 2*sizeofIN;
 
@@ -219,7 +259,7 @@ public:
 	unsigned k, //mer size
 	bool b_verify = false, //if true, print summary
 	ostream& os = cout
-	) : myForest( n )
+	) : myForest( n ), IN (n), OUT (n)
   {
     sigma = 4;
     
@@ -231,27 +271,14 @@ public:
 
     //initialize IN, OUT to zero (false)
     BOOST_LOG_TRIVIAL(info) << "Initializing IN and OUT.";
-    vector< bool > vzero( sigma, false );
-    IN.assign( this->n, vzero );
-    OUT.assign( this->n, vzero );
 
     //add edges to IN and OUT
     BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
 
     add_edges( edgemers);
 
-    BOOST_LOG_TRIVIAL(info) << "Shrinking IN and OUT ...";
-    //    for (unsigned i = 0; i < n; ++i) {
-    //      for (unsigned j = 0; j < 4; ++j) {
-    //	IN[i][j].shrink_to_fit();
-    //	OUT[i][j].shrink_to_fit();
-    //      }
-    //    }
-    IN.shrink_to_fit();
-    OUT.shrink_to_fit();
-
-    // For debugging, print IN and OUT given kmers
-    // printINandOUT(kmers);
+    //For debugging, print IN and OUT given kmers
+    //printINandOUT(kmers);
     
     //Perform the forest construction
     construct_forest( kmers, k*2 ); //alpha = k * lg(sigma)
@@ -306,9 +333,8 @@ public:
         << hash_v;
     }
 
-    OUT[ hash_u ][ last ] = true;
-    IN[ hash_v ][ first ] = true;
-
+    this->OUT(hash_u, last) = true;
+    this->IN(hash_v, first) = true;
     
   }
 
@@ -345,13 +371,13 @@ public:
     u_int64_t hashV = f( v );
     unsigned outIndex = access_kmer( v, k, k - 1 );
     unsigned inIndex = access_kmer( u, k, 0 );
-    if ( OUT[ hashU ][ outIndex ] )
+    if ( OUT(hashU, outIndex) )
       return; // edge already exists
 
     //making it here means that edge is compatible and edge is not already in graph
     //So: begin logic for adding edge
-    OUT[ hashU ][ outIndex ] = 1;
-    IN[ hashV ][ inIndex ] = 1;
+    OUT(hashU, outIndex) = 1;
+    IN(hashV, inIndex) = 1;
 
     //Now, need to update the forest
     //TODO
@@ -443,12 +469,12 @@ public:
       }
       //confirm the edge from parent side
       if (in) {
-	if (!(OUT[ hash ][ letter ])) {
+	if (!(OUT(hash, letter))) {
 	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	   return false;
 	}
       } else {
-	if (!(IN[ hash ][ letter ])) {
+	if (!(IN(hash, letter))) {
 	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	  return false;
 	}
@@ -524,12 +550,12 @@ public:
       }
       //confirm the edge from parent side
       if (in) {
-	if (!(OUT[ hash ][ letter ])) {
+	if (!(OUT(hash, letter))) {
 
 	  return false;
 	}
       } else {
-	if (!(IN[ hash ][ letter ])) {
+	if (!(IN(hash, letter))) {
 
 	  return false;
 	}
@@ -671,7 +697,7 @@ public:
     //    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << get_kmer_str(c, k  ) << ' ' << fc;
     //    BOOST_LOG_TRIVIAL(trace) << "Size of IN,OUT: " << IN[ fc ].size() << ' ' << OUT[ fc ].size();
     for ( unsigned ii = 0; ii < 4; ++ii ) {
-      if ( IN[ fc ][ ii ] ) {
+      if ( IN(fc, ii) ) {
 	//have in-neighbor with letter
 	Letter letter ( ii );
 	//	BOOST_LOG_TRIVIAL(trace) << "letter: " << ii << ' ' << letter.getNum();
@@ -683,7 +709,7 @@ public:
 	
 	v_inorout.push_back( true ); //true=IN
       }
-      if ( OUT[ fc ][ ii ] ) {
+      if ( OUT(fc, ii) ) {
 	//have out-neighbor with letter
 	Letter letter ( ii );
 
@@ -716,6 +742,7 @@ public:
     visited.insert( mer );
   }
 
+
   // Print IN and OUT with the Kmer strings down the side, and the characters on the top
   void printINandOUT(unordered_set<kmer_t>& kmers) {
  
@@ -732,10 +759,10 @@ public:
         cout << setw(10) << get_kmer_str(*i, this->k);
 
         u_int64_t hash = this->f(*i); 
-        cout << setw(5) << IN[hash][0];
-        cout << setw(5) << IN[hash][1];
-        cout << setw(5) << IN[hash][2];
-        cout << setw(5) << IN[hash][3];
+        cout << setw(5) << this->IN(hash, 0);
+        cout << setw(5) << this->IN(hash, 1);
+        cout << setw(5) << this->IN(hash, 2);
+        cout << setw(5) << this->IN(hash, 3);
         cout << endl;
     } 
 
@@ -752,10 +779,10 @@ public:
         cout << setw(10) << get_kmer_str(*i, this->k);
 
         u_int64_t hash = this->f(*i); 
-        cout << setw(5) << OUT[hash][0];
-        cout << setw(5) << OUT[hash][1];
-        cout << setw(5) << OUT[hash][2];
-        cout << setw(5) << OUT[hash][3];
+        cout << setw(5) << this->OUT(hash, 0);
+        cout << setw(5) << this->OUT(hash, 1);
+        cout << setw(5) << this->OUT(hash, 2);
+        cout << setw(5) << this->OUT(hash, 3);
         cout << endl;
     } 
 
