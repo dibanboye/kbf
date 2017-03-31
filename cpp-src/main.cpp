@@ -18,6 +18,7 @@
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
+#include "FDBG.cpp"
 
 // libbf
 #include "BaseBloomFilter.hpp"
@@ -27,7 +28,7 @@
 #include "KBFSparseRelaxed.hpp"
 #include "KBFUtil.hpp"
 #include "JellyfishUtil.h"
-#include "FDBG.cpp"
+
 
 
 using namespace std;
