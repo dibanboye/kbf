@@ -36,9 +36,17 @@ class generate_hash {
         //the image of our k-mers under our Karp-Rabin hash function
         //vector<u_int64_t> KR_hash_val;
 
+	/* 
+	 * Will store the precomputed powers of 
+	 * Needs to be a vector will have k distinct powers
+	 * Using 128 bit type to prevent overflow
+	 * Stores powers in order r^1, r^2, ..., r^k
+	 */
+	vector< uint128_t > powersOfR; 
+
         boophf_t* bphf; //MPHF we will generate
 
-        u_int64_t base; // the base for our Karp-Rabin Hash function
+        u_int64_t r; // the base for our Karp-Rabin Hash function
         u_int64_t Prime; // the prime for our Karp-Rabin Hash function
 
         const static short sigma = 4; // alphabet size
@@ -62,10 +70,23 @@ class generate_hash {
 	  this->k_kmer = k; // length of each k-mer
 	  
           BOOST_LOG_TRIVIAL(info) << "Constructing the hash function ...";
-
 	  build_KRHash(kmers); // build KR hash function
 	  build_minimalPerfectHash(); // build minimal perfect hash function
 	  
+	}
+
+	/*
+	 * Once we know k (k_kmer) and r
+	 * we can precompute the powers of r
+	 */
+	void precomputePowers() {
+	  uint128_t ri;
+	  powersOfR.clear();
+	  //NEED 1 to k. Not 0 to (k - 1)
+	  for (unsigned i = 1; i <= k_kmer; ++i) {
+	    ri = mypower( r, i );
+	    powersOfR.push_back( ri );
+	  }
 	}
 	
 
@@ -74,7 +95,7 @@ class generate_hash {
          */
         u_int64_t get_hash_value(const kmer_t& seq)
         {
-            u_int64_t krv = generate_KRHash_val(seq, k_kmer, base, Prime);
+            u_int64_t krv = generate_KRHash_val(seq, k_kmer, Prime);
             u_int64_t res = this->bphf->lookup(krv); // still need only 64 bits for kmer_t
             return res;
         }
@@ -98,7 +119,6 @@ class generate_hash {
 
             BOOST_LOG_TRIVIAL(info) << "Constructing Karp-Rabin hash function ...";
 
-            u_int64_t r; // our base, which we will figure out in loop
             u_int64_t v; // holder for KRH value
 
             // prime we will mod out by
@@ -114,11 +134,15 @@ class generate_hash {
 	    do
 	      {
 	      f_injective = true; //assume f is injective until evidence otherwise
-	      r = randomNumber((u_int64_t) 1, P-1);     
+	      this->r = randomNumber((u_int64_t) 1, P-1);
+	      //Once we have a candidate base r
+	      //we should avoid recomputing its powers all the time
+	      precomputePowers();
+	      
 	      for ( unordered_set< kmer_t >::iterator
 		      it1 = kmers.begin(); it1 != kmers.end();
 		    ++it1 ) {
-		v = generate_KRHash_val( *it1, k_kmer, r, P);
+		v = generate_KRHash_val( *it1, k_kmer, P);
 		//		BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
 		if (this->KRHash.find(v) == this->KRHash.end())
 		  {
@@ -127,7 +151,7 @@ class generate_hash {
 		  }
 		else // not injective
 		  {
-                    BOOST_LOG_TRIVIAL(trace) << "Base " << r << " with prime "
+                    BOOST_LOG_TRIVIAL(trace) << "Base " <<this->r << " with prime "
                        << P << " failed injectivity.";
 		    this->KRHash.clear(); // clear it out and start over
 		    f_injective = false;
@@ -138,8 +162,7 @@ class generate_hash {
 	    } while (!f_injective);
 
 	    
-            BOOST_LOG_TRIVIAL(info) << "Base " << r << " with prime " << P << " is injective.";
-	    this->base = r;
+            BOOST_LOG_TRIVIAL(info) << "Base " << this->r << " with prime " << P << " is injective.";
 	    this->Prime = P;
 
 	    return;
@@ -165,25 +188,24 @@ class generate_hash {
          */
         u_int64_t generate_KRHash_val(const kmer_t& kmer,
 				      const unsigned& k,
-				      const u_int64_t& r,
 				      const u_int64_t& P){
 	  //	  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
 	  //use 128 bits to prevent overflow
 	  uint128_t val = 0; // what will be the KRH value
 
             // go through each bp and add value
-            for (int i = k - 1;
-		 i >= 0;
-		 i--)
-            {
+	  for (unsigned i = 0;
+	       i < k;
+	       ++i) {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
-	      val += static_cast< uint128_t > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
-		mypower(r, static_cast<unsigned>(i + 1) );
-            }
+	      val +=
+		static_cast< uint128_t > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
+		powersOfR[i]; //powersOfR[i] = r^{i + 1}
+	  }
 
-            val = val % P;
+	  val = val % P;
 
-            return static_cast<u_int64_t>(val);
+	  return static_cast<u_int64_t>(val);
         }
 
         /**

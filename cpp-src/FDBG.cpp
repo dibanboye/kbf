@@ -309,6 +309,43 @@ public:
 
   }
 
+  /*
+   * Add an edge dynamically to the data structure.
+   * From u to v
+   * Updates the forest dynamically.
+   * Nothing happens if the k-mers aren't compatible.
+   */
+  void dynamicAddEdge( const kmer_t& u, const kmer_t& v ) {
+    //check if u, v are compatible
+    unsigned ui, vi;
+    for (unsigned i = 0; i < (k - 1); ++i) {
+      ui = access_kmer( u, k, i + 1 );
+      vi = access_kmer( v, k, i );
+      if (ui != vi)
+	return;
+    }
+
+    //making it this far means that an edge can be added between them
+    //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
+    //if edge was already present, quit
+    u_int64_t hashU = f( u );
+    u_int64_t hashV = f( v );
+    unsigned outIndex = access_kmer( v, k, k - 1 );
+    unsigned inIndex = access_kmer( u, k, 0 );
+    if ( OUT[ hashU ][ outIndex ] )
+      return; // edge already exists
+
+    //making it here means that edge is compatible and edge is not already in graph
+    //So: begin logic for adding edge
+    OUT[ hashU ][ outIndex ] = 1;
+    IN[ hashV ][ inIndex ] = 1;
+
+    //Now, need to update the forest
+    //TODO
+
+    return;
+  }
+  
   //add edge implied by the k+1-mer (between the first k and last k characters).
   void add_edge( string& edge ) {
 
@@ -328,6 +365,8 @@ public:
     // set edge in IN/OUT 
     OUT[ f(u) ][ last ] = true;
     IN[ f(v) ][ first ] = true;
+
+    
   }
 
   // Take a k+1-mer and split into beginning and end k-mers
