@@ -223,7 +223,7 @@ int main(int argc, char* argv[]) {
 	unordered_set<kmer_t>::iterator i;
 
 	for (i = read_kmers.begin(); i != read_kmers.end(); ++i) {
-	   BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, K );
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, K );
 	  if (!fdbg.detect_membership( *i )) {
 	    BOOST_LOG_TRIVIAL(error) << "Member k-mer not detected!";
 	    exit(1);

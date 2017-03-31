@@ -395,16 +395,17 @@ public:
 
     // The hash value of our kmer
     // Need to keep track of KRval, so it can be updated
-    uint128_t KR_val = f.generate_KRHash_raw( m, k ) ;
+    // largeUnsigned type is provided by 'generate_hash.h'
+    largeUnsigned KR_val = f.generate_KRHash_raw( m, k ) ;
     u_int64_t hash = f.perfect_from_KR( KR_val );
     
-    BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
+    //    BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
     
     //    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
 
     // If it is a real kmer value, it must map to 0..1-n
     if (hash >= n) {
-       BOOST_LOG_TRIVIAL(debug)  << "Returning false because of hash function blowup" << endl;
+       //       BOOST_LOG_TRIVIAL(debug)  << "Returning false because of hash function blowup" << endl;
       return false;
     }
 
@@ -437,8 +438,12 @@ public:
 	letter = access_kmer( m, k, 0 );
       }
 
+      //      BOOST_LOG_TRIVIAL(debug) << "Child k-mer: " << get_kmer_str( m, k );
+      
       // deduce the parent's kmer
       m = fn.getNext(m, k);
+
+      //      BOOST_LOG_TRIVIAL(debug) << "Parent k-mer: " << get_kmer_str( m, k );
       
       // get the parent's hash
       if (in) {
@@ -450,25 +455,25 @@ public:
 	f.update_KRHash_val_OUT( KR_val, letter, letter_back_parent );
 	hash = f.perfect_from_KR( KR_val );
       }
-      //  	hash = f(m); <----left over from old inefficient hashing
-      BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
-      BOOST_LOG_TRIVIAL(debug) << "Correct, computed KR_val: "
-			       << f.generate_KRHash_raw( m, k ) << ' ' << KR_val;
+      //hash = f(m); 
+      //      BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
+      //      BOOST_LOG_TRIVIAL(debug) << "Correct, computed KR_val: "
+      //      			       << f.generate_KRHash_raw( m, k ) << ' ' << KR_val;
 
       // hash must be in 0...n-1
       if (hash >= n) {
-	 BOOST_LOG_TRIVIAL(debug) << "Returning false because of hash function blowup" << endl;
+	 //	 BOOST_LOG_TRIVIAL(debug) << "Returning false because of hash function blowup" << endl;
 	return false;
       }
       //confirm the edge from parent side
       if (in) {
 	if (!(OUT[ hash ][ letter ])) {
-	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	   return false;
 	}
       } else {
 	if (!(IN[ hash ][ letter ])) {
-	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	  return false;
 	}
       }
