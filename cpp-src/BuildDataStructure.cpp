@@ -64,6 +64,14 @@ int main(int argc, char* argv[]) {
    reads.clear();
    BOOST_LOG_TRIVIAL(info) << "Size(bytes):" << getCurrentRSS();
    BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << getCurrentRSS() / 1024.0;
+
+   BOOST_LOG_TRIVIAL(info) << "Size(est. bytes):" << Graph.get_size();
+   BOOST_LOG_TRIVIAL(info) << "Size(est. Mb):" << Graph.get_size() / 1024.0;
+
+   BOOST_LOG_TRIVIAL(info) << "Size(bits):" << Graph.getBitSize();
+   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.getBitSize() / static_cast<double>( Graph.n );
+   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.getBitSize() / (8.0 * 1024);
+   
    return 0;
 }
 

@@ -186,16 +186,28 @@ public:
   forest myForest; //the forest (described in paper)
   unsigned alpha;   //each tree in forest is guaranteed to be of height alpha to 3alpha
 
-  u_int64_t get_size() {
+  double get_size() { //in bites
     u_int64_t ssize = 0;
 
     //Compute size of IN, OUT
     
-    u_int64_t sizeofrow = sizeof( IN[0] ) + sizeof( bool ) * 4;
-    u_int64_t sizeofIN = sizeofrow * n;
-    u_int64_t sizeofINOUT = 2*sizeofIN;
-    u_int64_t sizeofFnode = 4 * sizeof(bool);
+    double sizeofrow = sizeof( IN[0] ) + 4 / 8.0 ; //each row takes half a byte + overhead
+    double sizeofIN = sizeofrow * n;
+    double sizeofINOUT = 2*sizeofIN;
+
+    double forestsize = n * 4 / 8.0 + myForest.stored_mers.size() * 2*k / 8.0; //not too accurate
+
+    double hashsize = f.bphf->totalBitSize() / 8.0;  //size in bytes
+
+    return forestsize + hashsize + sizeofINOUT;
     
+  }
+
+  u_int64_t getBitSize() {
+    u_int64_t res = 8 * n; //IN,OUT
+    res += 4 * n + myForest.stored_mers.size() * 2*k; //not too accurate, adding forest bits
+    res += f.bphf->totalBitSize();
+    return res;
   }
   
   FDBG( vector< string >& reads, 
