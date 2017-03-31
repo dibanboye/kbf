@@ -207,14 +207,15 @@ int main(int argc, char* argv[]) {
 
     // parse test reads and count the test kmers
     //    cerr << "Generating test kmers..." << endl;
-    vector<kmer_t> query_kmers; // = sample_kmers(read_kmers, query_set_size,K,TP);
+    vector<kmer_t> query_kmers = sample_kmers(read_kmers, query_set_size,K,TP);
 
     {
     	// Test the Fully Dynamic De Bruijn Graph
         cerr << "#### Fully Dynamic de Bruijn Graph ####" << endl;
 	//	read_kmers = getKmers(reads, K );
+	unordered_set<kmer_t> edge_kmers = getKmers(reads, K + 1);
         auto start = std::chrono::system_clock::now();
-        FDBG fdbg( reads, read_kmers, read_kmers.size(), K, false );
+        FDBG fdbg( read_kmers, edge_kmers, read_kmers.size(), K, false );
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
         cerr << "Build and populate FDBG: " << elapsed_seconds.count() << " s" << endl;
@@ -222,6 +223,7 @@ int main(int argc, char* argv[]) {
 	BOOST_LOG_TRIVIAL(info) << "Read in " << read_kmers.size() << " kmers of size " << K;
 	unordered_set<kmer_t>::iterator i;
 
+	/*
 	for (i = read_kmers.begin(); i != read_kmers.end(); ++i) {
 	   //	   BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, K );
 	  if (!fdbg.detect_membership( *i )) {
@@ -230,7 +232,7 @@ int main(int argc, char* argv[]) {
 	  }
 	}
 
-	BOOST_LOG_TRIVIAL(info) << "All member k-mers correctly detected.";
+	BOOST_LOG_TRIVIAL(info) << "All member k-mers correctly detected.";*/
 	
     	queryKmers(query_kmers, read_kmers, fdbg, prefix+"_fdbg.txt", K);
     }
