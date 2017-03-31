@@ -55,7 +55,8 @@ class generate_hash {
          * Create hash function out of n k-mers of length k
          */
         generate_hash( unordered_set< kmer_t >& kmers , u_int64_t n , unsigned k ) {
-	  std::srand(std::time(NULL));
+	  //	  std::srand(std::time(NULL));
+	  std::srand( 0 );
 	  
 	  construct_hash_function( kmers,  n,  k );
         }
@@ -207,6 +208,29 @@ class generate_hash {
 	  return static_cast<u_int64_t>(val);
         }
 
+	/**
+         * Given a kmer, find out its KRH using base r and prime P
+	 * HOWEVER: does not mod out by P. So returns 128 bit unsigned
+         */
+        uint128_t generate_KRHash_raw(const kmer_t& kmer,
+				      const unsigned& k ) {
+	  //	  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
+	  //use 128 bits to prevent overflow
+	  uint128_t val = 0; // what will be the KRH value
+
+            // go through each bp and add value
+	  for (unsigned i = 0;
+	       i < k;
+	       ++i) {
+	      // val += baseNum(kmer.at(i)) * pow(r, i);
+	      val +=
+		static_cast< uint128_t > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
+		powersOfR[i]; //powersOfR[i] = r^{i + 1}
+	  }
+
+	  return val;
+        }
+
 	/*
 	 * This function takes as input a Karp-Rabin value (KR_val)
 	 * Then updates it by subtracting the value from 'first' character source kmer
@@ -216,16 +240,13 @@ class generate_hash {
 	 * target k-mer is OUT neighbor of source k-mer
 	 *
 	 */
-	u_int64_t update_KRHash_val_OUT
-	  ( u_int64_t& KR_val_in,       //KR hash of source kmer
+	void update_KRHash_val_OUT
+	  ( uint128_t& KR_val,       //KR hash of source kmer
 	    const unsigned& first,   //character at front of source k-mer
 	    const unsigned& last ) { //last character in target k-mer
-	  uint128_t KR_val = KR_val_in;
 	  KR_val = KR_val - first * r;
 	  KR_val = KR_val / r;
 	  KR_val = KR_val + last * powersOfR[ k_kmer - 1 ]; // last * r^k
-	  KR_val = KR_val % Prime;
-	  return static_cast< u_int64_t >( KR_val);
 	}
 
 	/*
@@ -233,25 +254,24 @@ class generate_hash {
 	 *
 	 * target k-mer is IN neighbor of source k-mer
 	 */
-	u_int64_t update_KRHash_val_IN
-	  ( u_int64_t& KR_val_in,       //KR hash of source kmer
+	void update_KRHash_val_IN
+	  ( uint128_t& KR_val,       //KR hash of source kmer
 	    const unsigned& first,   //character at front of target k-mer
 	    const unsigned& last ) { //last character in source k-mer
-	  uint128_t KR_val = KR_val_in;
+
 	  KR_val = KR_val - last * powersOfR[ k_kmer - 1 ]; // last * r^k
 	  KR_val = KR_val * r;
 	  KR_val = KR_val + first * r;
-	  KR_val = KR_val % Prime;
-	  return static_cast< u_int64_t >( KR_val);
 	}
 
 	
 	/*
-	 * Looks up the minimal perfect hash value, given the Karp-Rabin
-	 *
+	 * Looks up the minimal perfect hash value, given the Karp-Rabin (raw value)
+	 * KR raw value means not modded out by the prime yet.
 	 */
-	u_int64_t perfect_from_KR( const u_int64_t& KR_val ) {
-	  return this->bphf->lookup( KR_val );
+	u_int64_t perfect_from_KR( const uint128_t& KR_val ) {
+	   uint128_t KR2 = KR_val % Prime;
+	   return this->bphf->lookup( static_cast< u_int64_t >(KR2) );
 	}
 
         /**

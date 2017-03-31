@@ -49,20 +49,31 @@ void queryKmers(vector<kmer_t> & test_kmers, unordered_set<kmer_t> & true_kmers,
     cerr << "query time: " << elapsed_seconds.count() << " s" << endl;
     // end the timing here
 
+    unsigned accuracy = 0;
+    
     // write states and true answers to file
     ofstream f_out(out_fname);
     f_out << "kmer\tBF_state\ttrue_state" << endl;
-    for (int i = 0; i < states.size(); i++)
-        f_out << test_kmers[i] << "\t" <<
+    for (int i = 0; i < states.size(); i++) {
+      f_out << test_kmers[i] << "\t" <<
           states[i] << "\t" <<
           (true_kmers.find(test_kmers[i]) != true_kmers.end() ) << endl;
+      if (states[i] == (true_kmers.find(test_kmers[i]) != true_kmers.end() )) {
+	accuracy = accuracy + 1;
+      }
+    }
+
+    cout << "Accuracy: " << accuracy << ' ' << states.size() << ' ' << states.size() - accuracy << endl;
+    
     f_out.close();
 }
 
 
 void queryKmers(vector<kmer_t> & test_kmers, unordered_set<kmer_t> & true_kmers, FDBG& fdbg,
-		const string & out_fname) {
+		const string & out_fname, unsigned k) {
     vector<bool> states;
+
+    
     // time this part
     auto start = std::chrono::system_clock::now();
     for (auto qk : test_kmers) {
@@ -74,13 +85,25 @@ void queryKmers(vector<kmer_t> & test_kmers, unordered_set<kmer_t> & true_kmers,
     cerr << "query time: " << elapsed_seconds.count() << " s" << endl;
     // end the timing here
 
+    unsigned accuracy = 0;
     // write states and true answers to file
     ofstream f_out(out_fname);
     f_out << "kmer\tFDBG_state\ttrue_state" << endl;
-    for (int i = 0; i < states.size(); i++)
-        f_out << test_kmers[i] << "\t" <<
-          states[i] << "\t" <<
-          (true_kmers.find(test_kmers[i]) != true_kmers.end() ) << endl;
+    for (int i = 0; i < states.size(); i++) {
+      f_out << test_kmers[i] << "\t" <<
+	states[i] << "\t" <<
+
+	(true_kmers.find(test_kmers[i]) != true_kmers.end() ) << endl;
+      if (states[i] == (true_kmers.find(test_kmers[i]) != true_kmers.end() )) {
+	accuracy = accuracy + 1;
+      } else {
+	cout << "Kmer: " << test_kmers[i] << ' ' << get_kmer_str( test_kmers[i], k ) << endl;
+	cout << "FDBG reports: " << fdbg.detect_membership( test_kmers[i] ) << endl;
+	cout << "find reports: " << (true_kmers.find(test_kmers[i]) != true_kmers.end() ) << endl;
+      }
+    }
+
+    cout << "Accuracy: " << accuracy << ' ' << states.size() << ' ' << states.size() - accuracy << endl;
     f_out.close();
 }
 
@@ -183,9 +206,35 @@ int main(int argc, char* argv[]) {
     cerr << "Getting kmers: " << elapsed_seconds.count() << " s" << endl;
 
     // parse test reads and count the test kmers
-    cerr << "Generating test kmers..." << endl;
-    vector<kmer_t> query_kmers = sample_kmers(read_kmers, query_set_size,K,TP);
+    //    cerr << "Generating test kmers..." << endl;
+    vector<kmer_t> query_kmers; // = sample_kmers(read_kmers, query_set_size,K,TP);
 
+    {
+    	// Test the Fully Dynamic De Bruijn Graph
+        cerr << "#### Fully Dynamic de Bruijn Graph ####" << endl;
+	//	read_kmers = getKmers(reads, K );
+        auto start = std::chrono::system_clock::now();
+        FDBG fdbg( reads, read_kmers, read_kmers.size(), K, false );
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end-start;
+        cerr << "Build and populate FDBG: " << elapsed_seconds.count() << " s" << endl;
+    	read_kmers = getKmers(reads, K );
+	BOOST_LOG_TRIVIAL(info) << "Read in " << read_kmers.size() << " kmers of size " << K;
+	unordered_set<kmer_t>::iterator i;
+
+	for (i = read_kmers.begin(); i != read_kmers.end(); ++i) {
+	   BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, K );
+	  if (!fdbg.detect_membership( *i )) {
+	    BOOST_LOG_TRIVIAL(error) << "Member k-mer not detected!";
+	    exit(1);
+	  }
+	}
+
+	BOOST_LOG_TRIVIAL(info) << "All member k-mers correctly detected.";
+	
+    	queryKmers(query_kmers, read_kmers, fdbg, prefix+"_fdbg.txt", K);
+    }
+    
 
     {
     	// Test the classic bloom filter
@@ -287,16 +336,5 @@ int main(int argc, char* argv[]) {
     // 	queryKmers(query_kmers, read_kmers, kbfsr, prefix+"_kbfs_relaxed_hittingset.txt");
     // }
 
-    {
-    	// Test the Fully Dynamic De Bruijn Graph
-        cerr << "#### Fully Dynamic de Bruijn Graph ####" << endl;
-        auto start = std::chrono::system_clock::now();
-        FDBG fdbg( reads, read_kmers, read_kmers.size(), K, false );
-        auto end = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed_seconds = end-start;
-        cerr << "Build and populate FDBG: " << elapsed_seconds.count() << " s" << endl;
-    	read_kmers = getKmers(reads, K );
-	
-    	queryKmers(query_kmers, read_kmers, fdbg, prefix+"_fdbg.txt");
-    }
+
 }
