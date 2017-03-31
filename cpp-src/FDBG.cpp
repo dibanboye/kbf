@@ -198,8 +198,8 @@ public:
     
   }
   
-  FDBG( vector< string >& reads, 
-	unordered_set<kmer_t>& kmers,
+  FDBG( unordered_set<kmer_t>& kmers,
+        unordered_set<kmer_t>& edgemers,
 	unsigned n, //number of kmers
 	unsigned k, //mer size
 	bool b_verify = false, //if true, print summary
@@ -214,23 +214,16 @@ public:
     //construct hash function f
     f.construct_hash_function( kmers, n, k );
 
-    //debugging
-    //print each value and mapping
-    unordered_set<kmer_t>::iterator i;
-    for (i = kmers.begin(); i!= kmers.end(); ++i) {
-      //       BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*i, k) << " maps to "
-      //       << f(*i);
-    }
-
     //initialize IN, OUT to zero (false)
     BOOST_LOG_TRIVIAL(info) << "Initializing IN and OUT.";
     vector< bool > vzero( sigma, false );
     IN.assign( this->n, vzero );
     OUT.assign( this->n, vzero );
 
-    //add edges to IN and OUT using reads
+    //add edges to IN and OUT
     BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
-    add_edges( reads, b_verify, os );
+
+    add_edges( edgemers);
 
     BOOST_LOG_TRIVIAL(info) << "Shrinking IN and OUT ...";
     //    for (unsigned i = 0; i < n; ++i) {
@@ -249,62 +242,27 @@ public:
   }
 
   /**
-   * Add edges to IN and OUT using reads (not kmers)
+   * Add edges to IN and OUT using K+1-mers
    */
-  void add_edges( vector< string >& reads, bool b_verify = false, ostream& os = cout ) {
-    string read;
-    string kplusone;
- 
-   //for each read, get k+1 length pieces that we can
-   //figure out an edge between two kmers
-   for (unsigned i = 0; i < reads.size(); ++i) {
-      read = reads[i];
-      unsigned index1 = 0;
+  void add_edges( unordered_set<kmer_t>& edges) {
 
-      while (index1 + k < read.size()) {
-	//get a k + 1 - mer
-	kplusone = read.substr( index1, k + 1 );
-	//        BOOST_LOG_TRIVIAL(debug) << "Read in k+1-mer " << kplusone;
-	add_edge( kplusone );
-	++index1;
-      }
-    }
-
-
-   //    BOOST_LOG_TRIVIAL(debug) << "Printing IN ...";
-    for (int i = 0; i < IN.size(); i++) {
-        if (IN[i].size() == 4) {
-	  //           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << IN[i][0] << ", "
-	  //              << IN[i][1] << ", "
-	  //              << IN[i][2] << ", " << IN[i][3];
-        }
-        else {
-	  BOOST_LOG_TRIVIAL(error) << "IN does not have the correct dimensions.";
-        }
-    }
-
-    //    BOOST_LOG_TRIVIAL(debug) << "Printing OUT ...";
-    for (int i = 0; i < OUT.size(); i++) {
-        if (OUT[i].size() == 4) {
-	  //           BOOST_LOG_TRIVIAL(debug) << " Node " << i << ": " << OUT[i][0] << ", "
-	  //              << OUT[i][1] << ", "
-	  //              << OUT[i][2] << ", " << OUT[i][3];
-        }
-        else {
-           BOOST_LOG_TRIVIAL(error) << "OUT does not have the correct dimensions.";
-        }
+    unordered_set<kmer_t>::iterator i;
+    for (i = edges.begin(); i!= edges.end(); ++i) {
+        add_edge(*i);
     }
 
   }
 
-  //add edge implied by the k+1-mer (between the first k and last k characters).
-  void add_edge( string& edge ) {
+  void add_edge(const kmer_t& edge ) {
 
     // figure out the two kmers
-    kmer_t u,v;
+    kmer_t u,v = 0;
+
     split_edge( edge, u, v );
-    //    BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, k)
-    //        << " to " << get_kmer_str(v, k);
+
+    //BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, this->k) << " to "
+    //    << get_kmer_str(v, this->k)
+    //    << " from edge " << get_kmer_str(edge, (this->k + 1));
 
     // get which column in sigma to put in (corresponds to which letter is the first/last)
     // number 0..3 represent each alphabet letter
@@ -313,19 +271,22 @@ public:
     last = access_kmer( v, k, k - 1 );
 
     // set edge in IN/OUT 
+    BOOST_LOG_TRIVIAL(debug) << "Hash value " << f(u) << " and letter " << last;
     OUT[ f(u) ][ last ] = true;
+    BOOST_LOG_TRIVIAL(debug) << "Hash value " << f(v) << " and letter " << first;
     IN[ f(v) ][ first ] = true;
   }
 
   // Take a k+1-mer and split into beginning and end k-mers
-  void split_edge( string& edge, kmer_t& u, kmer_t& v ) {
-    unsigned index = 1;
-    while (index <= k) {
-      set_kmer( u, k, index - 1, edge[ index - 1 ] );
-      set_kmer( v, k, index - 1, edge[ index ] );
+  // u is the beginning, v is the end
+  void split_edge( const kmer_t& edge, kmer_t& u, kmer_t& v ) {
 
-      ++index;
-    }
+     // Push off the last letter
+     u = edge >> 2;
+
+     // Set the front one to 0
+     v = edge & ~(3 << 2*(this->k));
+
   }
 
   void print_matrix( vector< vector< bool > >& mat, ostream& os = cout ) {
