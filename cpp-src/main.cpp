@@ -19,7 +19,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
 #include "FDBG.cpp"
-
+#include "formatutil.cpp"
 // libbf
 #include "BaseBloomFilter.hpp"
 #include "KBF1.hpp"
@@ -28,7 +28,6 @@
 #include "KBFSparseRelaxed.hpp"
 #include "KBFUtil.hpp"
 #include "JellyfishUtil.h"
-
 
 
 using namespace std;
@@ -188,39 +187,27 @@ int main(int argc, char* argv[]) {
       else
 	     assert(TP_string.compare("false") == 0);
     }
-    unordered_set<kmer_t> read_kmers;
-
     // parse input reads -- will build a kmer set from that
-    cerr << "Parsing input fasta " << input_fasta << endl;
+
+    unordered_set<kmer_t> read_kmers;
+    unordered_set<kmer_t> edge_kmers;
+
     auto start = std::chrono::system_clock::now();
-    vector<string> reads = parseFasta(input_fasta);
+    handle_mers( input_fasta, K, read_kmers, edge_kmers );
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end-start;
-    cerr << "Parsing: " << elapsed_seconds.count() << " s" << endl;
-    cerr << "Getting kmers... " << endl;
-    start = std::chrono::system_clock::now();
-    read_kmers = getKmers(reads, K);
-    end = std::chrono::system_clock::now();
-    elapsed_seconds = end-start;
-    cerr << "Input kmers: " << read_kmers.size() << endl;
-    cerr << "Getting kmers: " << elapsed_seconds.count() << " s" << endl;
 
-    // parse test reads and count the test kmers
-    //    cerr << "Generating test kmers..." << endl;
+    BOOST_LOG_TRIVIAL(info) << "Getting " << read_kmers.size() + edge_kmers.size() << " mers took " << elapsed_seconds.count() << " s";
     vector<kmer_t> query_kmers = sample_kmers(read_kmers, query_set_size,K,TP);
 
     {
     	// Test the Fully Dynamic De Bruijn Graph
-        cerr << "#### Fully Dynamic de Bruijn Graph ####" << endl;
-	//	read_kmers = getKmers(reads, K );
-	unordered_set<kmer_t> edge_kmers = getKmers(reads, K + 1);
+       BOOST_LOG_TRIVIAL(info) << "#### Fully Dynamic de Bruijn Graph ####" << endl;
         auto start = std::chrono::system_clock::now();
         FDBG fdbg( read_kmers, edge_kmers, read_kmers.size(), K, false );
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        cerr << "Build and populate FDBG: " << elapsed_seconds.count() << " s" << endl;
-    	read_kmers = getKmers(reads, K );
-	BOOST_LOG_TRIVIAL(info) << "Read in " << read_kmers.size() << " kmers of size " << K;
+        BOOST_LOG_TRIVIAL(info) << "Build and populate FDBG: " << elapsed_seconds.count() << " s" << endl;
 	unordered_set<kmer_t>::iterator i;
 
 	/*
@@ -240,24 +227,24 @@ int main(int argc, char* argv[]) {
 
     {
     	// Test the classic bloom filter
-        cerr << "#### CLASSIC BLOOM FILTER ####" << endl;
+        BOOST_LOG_TRIVIAL(info) << "#### CLASSIC BLOOM FILTER ####" << endl;
         auto start = std::chrono::system_clock::now();
         BaseBloomFilter b(K,read_kmers.size(),10);
     	b.populate(read_kmers);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        cerr << "Build and populate Classic Bloom filter: " << elapsed_seconds.count() << " s" << endl;
+        BOOST_LOG_TRIVIAL(info) << "Build and populate Classic Bloom filter: " << elapsed_seconds.count() << " s" << endl;
     	queryKmers(query_kmers, read_kmers, b, prefix+"_classic.txt");
     }
 
     {
     	// Test KBF1
-    	cerr << "#### KBF1 ####" << endl;
+    	BOOST_LOG_TRIVIAL(info) << "#### KBF1 ####" << endl;
         auto start = std::chrono::system_clock::now();
     	KBF1 kbf1(K,read_kmers,1);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        cerr << "Build and populate KBF1: " << elapsed_seconds.count() << " s" << endl;
+        BOOST_LOG_TRIVIAL(info) << "Build and populate KBF1: " << elapsed_seconds.count() << " s" << endl;
     	queryKmers(query_kmers, read_kmers, kbf1, prefix+"_kbf1.txt");
     }
 
@@ -265,57 +252,57 @@ int main(int argc, char* argv[]) {
     	// Test KBF2
     	unordered_set<kmer_t> edge_kmers;
         read_kmers.clear();
-    	cerr << "#### KBF2 ####" << endl;
+    	BOOST_LOG_TRIVIAL(info) << "#### KBF2 ####" << endl;
         auto start = std::chrono::system_clock::now();
-        getKmersAndEdgeKmers(reads, K, 1, read_kmers, edge_kmers);
+	//getKmersAndEdgeKmers(reads, K, 1, read_kmers, edge_kmers);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        cerr << "Parse fasta, get kmers, potential edge kmers for KBF2: " << elapsed_seconds.count() << " s" << endl;
-    	cerr << "Potential edge kmers: " << edge_kmers.size() << endl;
+        BOOST_LOG_TRIVIAL(info) << "Parse fasta, get kmers, potential edge kmers for KBF2: " << elapsed_seconds.count() << " s" << endl;
+    	BOOST_LOG_TRIVIAL(info) << "Potential edge kmers: " << edge_kmers.size() << endl;
         start = std::chrono::system_clock::now();
     	KBF2 kbf2(K, read_kmers, edge_kmers, 1);
         end = std::chrono::system_clock::now();
         elapsed_seconds = end-start;
-        cerr << "Build and populate KBF2: " << elapsed_seconds.count() << " s" << endl;
+        BOOST_LOG_TRIVIAL(info) << "Build and populate KBF2: " << elapsed_seconds.count() << " s" << endl;
     	queryKmers(query_kmers, read_kmers, kbf2, prefix+"_kbf2.txt");
     }
 
-    {
-    	// Test sparse KBF - single sequence only
-    	// Uncomment for single sequence input fasta
-    	unordered_set<kmer_t> sparse_kmers;
-	unordered_set<kmer_t> edge_kmers;
-        cerr << "#### SPARSE KBF - SINGLE SEQUENCE ####" << endl;
-        auto start = std::chrono::system_clock::now();
-        getNthKmersAndEdgeKmers(reads,K,1,sparse_kmers,edge_kmers);
-        auto end = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed_seconds = end-start;
-        cerr << "Parse fasta, get kmers, and potential edge kmers for single sequence sparse KBF: " << elapsed_seconds.count() << " s" << endl;
-        cerr << "Potential edge kmers: " << edge_kmers.size() << endl;
-        start = std::chrono::system_clock::now();
-        KBFSparse kbfs(K, sparse_kmers, edge_kmers,1,10);
-        end = std::chrono::system_clock::now();
-        elapsed_seconds = end-start;
-        cerr << "Build and populate single sequence sparse KBF: " << elapsed_seconds.count() << " s" << endl;
-        queryKmers(query_kmers, read_kmers, kbfs, prefix+"_kbfs_singleseq.txt");
-    }
+    // {
+    // 	// Test sparse KBF - single sequence only
+    // 	// Uncomment for single sequence input fasta
+    // 	unordered_set<kmer_t> sparse_kmers;
+    // 	unordered_set<kmer_t> edge_kmers;
+    //     BOOST_LOG_TRIVIAL(info) << "#### SPARSE KBF - SINGLE SEQUENCE ####" << endl;
+    //     auto start = std::chrono::system_clock::now();
+    //     getNthKmersAndEdgeKmers(reads,K,1,sparse_kmers,edge_kmers);
+    //     auto end = std::chrono::system_clock::now();
+    //     std::chrono::duration<double> elapsed_seconds = end-start;
+    //     BOOST_LOG_TRIVIAL(info) << "Parse fasta, get kmers, and potential edge kmers for single sequence sparse KBF: " << elapsed_seconds.count() << " s" << endl;
+    //     BOOST_LOG_TRIVIAL(info) << "Potential edge kmers: " << edge_kmers.size() << endl;
+    //     start = std::chrono::system_clock::now();
+    //     KBFSparse kbfs(K, sparse_kmers, edge_kmers,1,10);
+    //     end = std::chrono::system_clock::now();
+    //     elapsed_seconds = end-start;
+    //     BOOST_LOG_TRIVIAL(info) << "Build and populate single sequence sparse KBF: " << elapsed_seconds.count() << " s" << endl;
+    //     queryKmers(query_kmers, read_kmers, kbfs, prefix+"_kbfs_singleseq.txt");
+    // }
 
     // {
     // 	// Test sparse KBF - best fit kmers
     // 	unordered_set<kmer_t> sparse_kmers;
     // 	unordered_set<kmer_t> edge_kmers;
-    // 	cerr << "#### SPARSE KBF - BEST FIT ####" << endl;
+    // 	BOOST_LOG_TRIVIAL(info) << "#### SPARSE KBF - BEST FIT ####" << endl;
     //     auto start = std::chrono::system_clock::now();
     //     getBestFitKmersAndEdgeKmers(reads,K,1,sparse_kmers,edge_kmers);
     //     auto end = std::chrono::system_clock::now();
     //     std::chrono::duration<double> elapsed_seconds = end-start;
-    //     cerr << "Parse fasta, get kmers, and potential edge kmers for best fit sparse KBF: " << elapsed_seconds.count() << " s" << endl;
-    // 	cerr << "Potential edge kmers: " << edge_kmers.size() <<  endl;
+    //     BOOST_LOG_TRIVIAL(info) << "Parse fasta, get kmers, and potential edge kmers for best fit sparse KBF: " << elapsed_seconds.count() << " s" << endl;
+    // 	BOOST_LOG_TRIVIAL(info) << "Potential edge kmers: " << edge_kmers.size() <<  endl;
     //     start = std::chrono::system_clock::now();
     // 	KBFSparse kbfs(K, sparse_kmers, edge_kmers, 1, 10);
     //     end = std::chrono::system_clock::now();
     //     elapsed_seconds = end-start;
-    //     cerr << "Build and populate bestfit sparse KBF: " << elapsed_seconds.count() << " s" << endl;
+    //     BOOST_LOG_TRIVIAL(info) << "Build and populate bestfit sparse KBF: " << elapsed_seconds.count() << " s" << endl;
     // 	queryKmers(query_kmers, read_kmers, kbfs, prefix+"_kbfs_bestfit.txt");
     // }
 
@@ -323,18 +310,18 @@ int main(int argc, char* argv[]) {
     //     //sparse KBF - hitting set optimization problem
     // 	unordered_set<kmer_t> sparse_kmers;
     // 	unordered_set<kmer_t> edge_kmers;
-    // 	cerr << "#### RELAXED SPARSE KBF - HITTING SET ####" << endl;
+    // 	BOOST_LOG_TRIVIAL(info) << "#### RELAXED SPARSE KBF - HITTING SET ####" << endl;
     //     auto start = std::chrono::system_clock::now();
     //     hittingSetKmersAndEdgeKmers(reads,K,sparse_kmers,edge_kmers);
     //     auto end = std::chrono::system_clock::now();
     //     std::chrono::duration<double> elapsed_seconds = end-start;
-    //     cerr << "Parse fasta, get kmers, and potential edge kmers for hitting set relaxed sparse KBF: " << elapsed_seconds.count() << " s" << endl;
-    // 	cerr << "Potential edge kmers: " << edge_kmers.size() << endl;
+    //     BOOST_LOG_TRIVIAL(info) << "Parse fasta, get kmers, and potential edge kmers for hitting set relaxed sparse KBF: " << elapsed_seconds.count() << " s" << endl;
+    // 	BOOST_LOG_TRIVIAL(info) << "Potential edge kmers: " << edge_kmers.size() << endl;
     //     start = std::chrono::system_clock::now();
     // 	KBFSparseRelaxed kbfsr(K, sparse_kmers, edge_kmers, 1, 10);
     //     end = std::chrono::system_clock::now();
     //     elapsed_seconds = end-start;
-    //     cerr << "Build and populate hitting set relaxed sparse KBF: " << elapsed_seconds.count() << " s" << endl;
+    //     BOOST_LOG_TRIVIAL(info) << "Build and populate hitting set relaxed sparse KBF: " << elapsed_seconds.count() << " s" << endl;
     // 	queryKmers(query_kmers, read_kmers, kbfsr, prefix+"_kbfs_relaxed_hittingset.txt");
     // }
 
