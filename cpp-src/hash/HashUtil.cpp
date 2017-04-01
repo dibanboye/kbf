@@ -15,6 +15,40 @@ void print_kmer( kmer_t mer, unsigned k,ostream& os);
 string get_kmer_str( kmer_t mer, unsigned k);
 /**Utility functions for generating our hash function*/
 
+/*                                                                                                      
+ * Finds inverse of a modulo b
+ * Since we know a and b it uses Euclidean Algorithm to find the inverse of a                           
+ * Note ai + bj = 1 Considering i is inverse of a and j is inverse of b                                 
+ */
+template< typename T >
+T findInverse(T a, T b) {
+   T x[3];
+   T y[3];
+   T quotient  = a / b;
+   T remainder = a % b;
+
+   x[0] = 0;
+   y[0] = 1;
+   x[1] = 1;
+   y[1] = quotient * -1;
+
+   int i = 2;
+   while( (b % (a%b)) != 0 ) {
+      a = b;
+      b = remainder;
+      quotient = a / b;
+      remainder = a % b;
+      x[i % 3] = (quotient * -1 * x[(i - 1) % 3]) + x[(i - 2) % 3];
+      y[i % 3] = (quotient * -1 * y[(i - 1) % 3]) + y[(i - 2) % 3];
+
+      ++i;
+   }
+
+   //x[i - 1 % 3] is inverse of a
+   //y[i - 1 % 3] is inverse of b
+   return x[(i - 1) % 3];
+}
+
 /**
  * Return the next prime greater than n 
  */
