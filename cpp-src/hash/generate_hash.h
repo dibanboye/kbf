@@ -53,6 +53,7 @@ class generate_hash {
         boophf_t* bphf; //MPHF we will generate
 
         u_int64_t r; // the base for our Karp-Rabin Hash function
+	u_int64_t rinv; //inverse of r modulo Prime
         u_int64_t Prime; // the prime for our Karp-Rabin Hash function
 
         const static short sigma = 4; // alphabet size
@@ -79,7 +80,15 @@ class generate_hash {
           BOOST_LOG_TRIVIAL(info) << "Constructing the hash function ...";
 	  build_KRHash(kmers); // build KR hash function
 	  build_minimalPerfectHash(); // build minimal perfect hash function
-	  
+	  int256_t kr = findInverse( static_cast< int256_t > (r), static_cast< int256_t > (Prime) );
+
+	  while ( kr < 0 )
+	     kr = kr + Prime;
+
+	  if (kr > Prime)
+	     kr = kr % Prime;
+
+	  rinv = static_cast< u_int64_t >( kr );
 	}
 
 	/*
@@ -253,8 +262,8 @@ class generate_hash {
 	       i < k;
 	       ++i) {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
-	     val = val + (access_kmer( kmer, k, i) *
-			  powersOfRModP[i]) % Prime; 
+	     val = val + ((access_kmer( kmer, k, i) *
+			   powersOfRModP[i])) % Prime; 
 	  }
 
 	  val = val % Prime;
@@ -321,7 +330,7 @@ class generate_hash {
 	}
 
 
-		/*
+	/*
 	 * This function takes as input a Karp-Rabin value (KR_val)
 	 * Then updates it by subtracting the value from 'first' character source kmer
 	 * Then dividing by r (at this point, it has shifted last k-1 characters up)
@@ -334,15 +343,46 @@ class generate_hash {
 	  ( u_int64_t& KR_val,       //KR hash of source kmer (mod P)
 	    const unsigned& first,   //character at front of source k-mer
 	    const unsigned& last ) { //last character in target k-mer
-	   int64_t kr = KR_val; //convert to signed type
-	   kr = findInverse( kr, static_cast< int64_t > (Prime) );
-	   kr = kr -  first ;
-	   kr = kr + last * powersOfRModP[ k_kmer - 1 ]; // last * r^k
+	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT(mod)...";
+	   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
+	   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
 
-	   while ( kr < 0 )
-	      kr = kr + Prime;
 
+	   uint128_t kr = KR_val;
+	   uint128_t sub_val = 4* static_cast< uint128_t >(Prime) - first * r;
+	   kr = (kr + sub_val );
+	   kr = (kr * rinv);
+	   kr = (kr + last * powersOfRModP[ k_kmer - 1 ]); // last * r^k
+	   kr = kr % Prime;
+
+	   BOOST_LOG_TRIVIAL(debug) << "Done with OUT_mod. ";
 	   return static_cast< u_int64_t>( kr ); 
+	}
+
+	/*
+	 * This function takes as input a Karp-Rabin value (KR_val) modulo Prime
+	 *
+	 * target k-mer is IN neighbor of source k-mer
+	 */
+	u_int64_t update_KRHash_val_IN_mod
+	  ( u_int64_t& KR_val,       //KR hash of source kmer
+	    const unsigned& first,   //character at front of target k-mer
+	    const unsigned& last ) { //last character in source k-mer
+	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN(mod)...";
+	   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
+	   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
+
+	   uint128_t kr = KR_val;
+	   uint128_t sub_val = 4* static_cast< uint128_t > (Prime) - last*powersOfRModP[ k_kmer - 1];
+	   BOOST_LOG_TRIVIAL(debug) << "4*Prime: " << 4*Prime;
+	   BOOST_LOG_TRIVIAL(debug) << "last*powersOfRModP[k_kmer - 1]: " << last*powersOfRModP[ k_kmer - 1];
+	   kr = (kr + sub_val); // last * r^k
+	   kr = (kr * r) ;
+	   kr = (kr + first * r) ;
+	   kr = kr % Prime;
+	   BOOST_LOG_TRIVIAL(debug) << "Done with IN_mod. ";
+	   return static_cast< u_int64_t > (kr) ;
+
 	}
 
 	/*
@@ -362,6 +402,8 @@ class generate_hash {
 	  KR_val = KR_val * r;
 	  KR_val = KR_val + first * r;
 	}
+
+
 
 	
 	/*
