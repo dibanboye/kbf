@@ -22,6 +22,9 @@ kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned);
 
 // Representation of A, C, G, and T in bits 00, 01, 10, 11
 class Letter {
+
+public:
+
   bool bits[2];
   void set_bits( char letter ) {
     switch ( letter ) {
@@ -45,8 +48,6 @@ class Letter {
 
   }
   
-public:
-
   void set( unsigned ii ) {
 
   }
@@ -54,6 +55,12 @@ public:
 
   Letter()  {
     set_bits( 'A' );
+  }
+
+  Letter(bool a, bool b)  {
+
+     this->bits[0] = a;
+     this->bits[1] = b;
   }
 
   //  Letter(bool first, bool second) {
@@ -98,78 +105,105 @@ public:
 };
 
 
-  
-// Class that represents a node in the forest
-// The only information encoded is whether it was reached during
-// the forest creation via IN or OUT (which determines how to recover
-// the kmer) and by what letter it is different (from the node that reached it)
-class ForestNode {
-public:
-  // Get to parent by IN (true) or OUT (false)
-  bool INorOUT;
+/**
+ * Class that represents the forest
+ * each group of 4 entries in the vector is a single node
+ */
+class Forest {
 
-  // What letter must be added to get to parent
-  Letter letter;
+  public:
+    /**
+     * Each four pieces of data describe a node in the forest
+     * One spot for whether it is stored as a root, one for whether
+     * its parent can be reached by IN or not, and two for letter to
+     * reach its parent by
+     * The ith node is the kmer that hashes to i
+     */
+    vector<bool> data;
 
-  bool is_stored; // whether the kmer for this is stored or not
+    // The number of nodes
+    u_int64_t n;
 
-  ForestNode() {
-    this->is_stored = false;
-  }
+    // The kmers of our roots
+    map<u_int64_t, kmer_t> roots;
 
-  ForestNode(bool INorOUT, Letter letter) {
+    /**Constructor*/
+    Forest(u_int64_t n): data(4*n) {
 
-    this->INorOUT = INorOUT;
-    this->letter = letter;
-
-    this->is_stored = false;
-  }
-
-  ForestNode(bool INorOUT, unsigned lett) : letter( lett ) {
-
-    this->INorOUT = INorOUT;
-
-    this->is_stored = false;
-  }
-
-  ForestNode( const ForestNode& rhs ) {
-    this->letter = rhs.letter;
-    this->INorOUT = rhs.INorOUT;
-
-    this->is_stored = rhs.is_stored;
-  }
-  
-  // Given this node's kmer string, figure out parent's kmer string
-  kmer_t getNext(kmer_t& mer, unsigned k) {
-
-    if (this->INorOUT) {
-      return pushOnFront(mer, letter, k);
+      this->n = n;
     }
-    else {
-      return pushOnBack(mer, letter, k);
+
+    /**
+     * Set value of the ith node
+     * Not stored
+     */
+    void setNode(u_int64_t& i, bool IN, Letter& l) {
+
+       u_int64_t index = this->nodeIndex(i);
+
+       this->data[index] = false;
+       this->data[index + 1] = IN; 
+
+       this->data[index + 2] = l.bits[0];
+       this->data[index + 3] = l.bits[1];
     }
-  }
 
-  ForestNode& operator=( const ForestNode& rhs ) {
+    // Return index in data of the beginning of the ith node
+    u_int64_t nodeIndex(u_int64_t i) {
+      return 4*i;
+    }
 
-    this->letter = rhs.letter;
-    this->is_stored = rhs.is_stored;
-    this->INorOUT = rhs.INorOUT;
-    return *this;
-  }
+    /**
+     * Store the kmer of the ith node
+     */
+    void storeNode(u_int64_t i, kmer_t str) {
 
-};
+       this->roots[i] = str;
 
+       this->data[nodeIndex(i)] = 1;
+    }
 
-class forest {
-public:
-  map< u_int64_t, kmer_t > stored_mers;
-  vector< ForestNode > nodes;
+    // Returns whether the ith node is stored
+    bool isStored(u_int64_t i) {
+       return this->data[nodeIndex(i)];
+    }
 
-  // Create a forest that has num_nodes nodes
-  forest(int num_nodes) : nodes( num_nodes ) {
+    // Whether the ith node has IN
+    bool parent_in_IN(u_int64_t i) {
+       return this->data[nodeIndex(i) + 1];
+    }
 
-  }
+    // Deduce the parent of the ith node's kmer given the ith node's
+    // kmer mer and the length of the kmers k
+    kmer_t getNext(u_int64_t i, kmer_t& mer, unsigned k) {
+
+      u_int64_t index = nodeIndex(i);
+      Letter l (this->data[index + 2], this->data[index + 3]);
+
+      if (this->data[index + 1]) {
+        // reach via IN
+        return pushOnFront(mer, l, k);
+      }
+      else {
+        return pushOnBack(mer, l, k);
+      }
+    }
+
+    /**Print out a plain array*/
+    void print() {
+
+        int index = 0;
+
+        for (int i = 0; i < this->n; i++) {
+          for (int j = 0; j < 4; j++) {
+            cout << this->data[index];
+            index++;
+          }
+          cout << endl;
+        }
+
+    }
+
 };
 
 /**
@@ -226,29 +260,15 @@ public:
   u_int64_t n; //number of nodes in graph
   unsigned k; //length of each mer (string in alphabet)
   generate_hash f; //hash function that takes each kmer to 1..n
-  forest myForest; //the forest (described in paper)
+  Forest fo; // the forest NEW
   unsigned alpha;   //each tree in forest is guaranteed to be of height alpha to 3alpha
 
-  double get_size() { //in bites
-    u_int64_t ssize = 0;
-
-    //Compute size of IN, OUT
-    
-    double sizeofrow = 4*sizeof( IN(0, 0) ) + 4 / 8.0 ; //each row takes half a byte + overhead
-    double sizeofIN = sizeofrow * n;
-    double sizeofINOUT = 2*sizeofIN;
-
-    double forestsize = n * 4 / 8.0 + myForest.stored_mers.size() * 2*k / 8.0; //not too accurate
-
-    double hashsize = f.bphf->totalBitSize() / 8.0;  //size in bytes
-
-    return forestsize + hashsize + sizeofINOUT;
-    
-  }
-
+  /**
+   * The number of bits that our data should be using
+   */
   u_int64_t getBitSize() {
     u_int64_t res = 8 * n; //IN,OUT
-    res += 4 * n + myForest.stored_mers.size() * 2*k; //not too accurate, adding forest bits
+    res += 4 * n + fo.roots.size() * 2*k; //not too accurate, adding forest bits
     res += f.bphf->totalBitSize();
     return res;
   }
@@ -259,7 +279,7 @@ public:
 	unsigned k, //mer size
 	bool b_verify = false, //if true, print summary
 	ostream& os = cout
-	) : myForest( n ), IN (n), OUT (n)
+	) : IN (n), OUT (n), fo (n)
   {
     sigma = 4;
     
@@ -268,6 +288,8 @@ public:
    
     //construct hash function f
     f.construct_hash_function( kmers, n, k );
+
+    //printHashFunction(kmers);
 
     //initialize IN, OUT to zero (false)
     BOOST_LOG_TRIVIAL(info) << "Initializing IN and OUT.";
@@ -283,7 +305,10 @@ public:
     //Perform the forest construction
     construct_forest( kmers, k*2 ); //alpha = k * lg(sigma)
 
-    myForest.nodes.shrink_to_fit();
+    //cout << "SIZE: " << this->fo.roots.size() << endl;
+
+    //printHashFunction(kmers);
+    //printForest();
   }
 
   /**
@@ -396,6 +421,17 @@ public:
     }
   }
 
+  void printHashFunction(unordered_set<kmer_t>& kmers) {
+
+    unordered_set<kmer_t>::iterator i;
+    for (i = kmers.begin(); i != kmers.end(); ++i) {
+        cout << setw(10) << get_kmer_str(*i, this->k);
+        cout << setw(10) << this->f(*i); 
+        cout << endl;
+    } 
+
+  }
+
   // Given a kmer, decide if it is one in our graph
   bool detect_membership( kmer_t m ) {
     //    BOOST_LOG_TRIVIAL(debug) << "Detecting membership of " << get_kmer_str(m, this->k);
@@ -417,16 +453,13 @@ public:
       return false;
     }
 
-    // get forest node
-    ForestNode fn = myForest.nodes[hash];
-
     //number of times we have traveled in the tree
     unsigned hopcount = 0;
     bool in;    //true = IN, false = OUT
     unsigned letter; //needed to confirm edge from parent's side
     
-    // fn is where we are in the tree. Keep going until we know its kmer value.
-    while ( !(fn.is_stored) ) {
+    // Keep going in the tree until we reach a hash that is stored as a root
+    while ( !(this->fo.isStored(hash)) ) {
       ++hopcount;
       if (hopcount > 3*alpha + 10) {
 	 //BOOST_LOG_TRIVIAL( debug ) << "Returning false because of hopcount" << endl;
@@ -434,7 +467,7 @@ public:
       }
 	
       //do we progress with IN or OUT
-      in = fn.INorOUT;
+      in = this->fo.parent_in_IN(hash);
       if (in) {
 	//the parent is an IN-neighbor of m
 	//so we need m's last character
@@ -449,7 +482,7 @@ public:
       //      BOOST_LOG_TRIVIAL(debug) << "Child k-mer: " << get_kmer_str( m, k );
       
       // deduce the parent's kmer
-      m = fn.getNext(m, k);
+      m = this->fo.getNext(hash, m, k);
 
       //      BOOST_LOG_TRIVIAL(debug) << "Parent k-mer: " << get_kmer_str( m, k );
       
@@ -486,14 +519,13 @@ public:
 	}
       }
       
-      fn = myForest.nodes[hash];
     }
 
     //    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, k) << " is deduced";
 
     // now we have a forest node that we have the kmer of stored
     // So we just have to test if it is accurate or not
-    if (m == myForest.stored_mers[hash])
+    if (m == fo.roots[hash])
       return true;
     else
       return false;
@@ -516,16 +548,12 @@ public:
       return false;
     }
 
-    // get forest node
-    ForestNode fn = myForest.nodes[hash];
-
     //number of times we have traveled in the tree
     unsigned hopcount = 0;
     bool in;    //true = IN, false = OUT
     unsigned letter; //needed to confirm edge from parent's side
     
-    // fn is where we are in the tree. Keep going until we know its kmer value.
-    while ( !(fn.is_stored) ) {
+    while ( !(this->fo.isStored(hash)) ) {
       ++hopcount;
       if (hopcount > 3*alpha + 10) {
 
@@ -533,7 +561,7 @@ public:
       }
 	
       //do we progress with IN or OUT
-      in = fn.INorOUT;
+      in = this->fo.parent_in_IN(hash);
       if (in) {
 	//the parent is an IN-neighbor of m
 	//so we need m's last character
@@ -546,7 +574,7 @@ public:
       }
 
       // deduce the parent's kmer
-      m = fn.getNext(m, k);
+      m = this->fo.getNext(hash, m, k);
       hash = f(m); 
 
       // hash must be in 0...n-1
@@ -567,14 +595,13 @@ public:
 	}
       }
       
-      fn = myForest.nodes[hash];
     }
 
     //    BOOST_LOG_TRIVIAL(debug) << "Root " << get_kmer_str(m, k) << " is deduced";
 
     // now we have a forest node that we have the kmer of stored
     // So we just have to test if it is accurate or not
-    if (m == myForest.stored_mers[hash])
+    if (m == fo.roots[hash])
       return true;
     else
       return false;
@@ -608,7 +635,6 @@ public:
       store( root );
 
       //      BOOST_LOG_TRIVIAL(debug) << "Building forest from root " + get_kmer_str(root, k);
-      //      BOOST_LOG_TRIVIAL(debug) << "Forest size, n " << myForest.nodes.size() << ' ' << n;
 
       // We have visited root
       move_kmer( kmers, visited_mers, root );
@@ -641,9 +667,11 @@ public:
         // Neighbors of c
 	get_neighbors( c, neis, v_inorout );
 
-       	ForestNode INc( false, access_kmer( c, k, k - 1 ) ); //the ForestNode for an IN-neighbor of c
-	ForestNode OUTc( true, access_kmer( c, k, 0 ) ); //the ForestNode for an OUT-neighbor of c
-	
+        // If a neighbor can be reached via OUT from c, this is the letter to reach it
+        Letter first_c = access_kmer(c, k, 0);
+        // Now for IN
+        Letter last_c = access_kmer(c, k, k - 1);
+
 	for (unsigned ii = 0; ii < neis.size(); ++ii) {
 	  kmer_t m = neis[ii]; //this is 'n' in the pseudocode
 	  //	  BOOST_LOG_TRIVIAL(debug) << "Checking neighbor m: " + get_kmer_str(m, k);
@@ -657,10 +685,15 @@ public:
  	    p[ f_m ] = c;
 
 	    if (v_inorout[ ii ]){
-	      //m is IN neighbor of c
-	      myForest.nodes[ f_m ] = INc;
+              /**
+               * The iith neighbor of c was reached by c via IN. Therefore to reach
+               * c from the iith neighbor, we must go OUT. We will need the last
+               * character of c
+               */
+              fo.setNode(f_m, false, last_c);
 	    } else {
-	      myForest.nodes[ f_m ] = OUTc;
+              // similar logic to the first case
+              fo.setNode(f_m, true, first_c);
 	    }
 	    
 	    h[ f_m ] = h[ f_c ] + 1;
@@ -734,11 +767,10 @@ public:
       
     }
   }
-  
+ 
   void store( kmer_t mer ) {
     u_int64_t val = f( mer );
-    myForest.stored_mers[ val ] = mer;
-    myForest.nodes[ val ].is_stored = true;
+    this->fo.storeNode(val, mer);
   }
   
   // Move mer from kmers and into visited
@@ -795,6 +827,26 @@ public:
 
   }
 
+  // Print the forest with the Kmer strings down the side
+  void printForest() {
+ 
+    cout << setw(30) << "===== FOREST =====" << endl << endl;
+ 
+    for (int i = 0; i < this->n; ++i) {
+        cout << setw(10) << i;
+
+        u_int64_t index = this->fo.nodeIndex(i);
+
+        cout << setw(5) << this->fo.data[index];
+        cout << setw(5) << this->fo.data[index + 1];
+        cout << setw(5) << this->fo.data[index + 2];
+        cout << setw(5) << this->fo.data[index + 3];
+        cout << endl;
+    } 
+
+  }
+
+
 
 // END CLASS
 };
@@ -815,17 +867,6 @@ void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
 
   val = val << 2*(k - i - 1);  //correct bits in i'th spot, zeros elsewhere
   mer = mer | val;
-}
-
-/*
- * Accesses the i'th position of a mer of length k 
- * Stores result in c 
- */
-void access_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
-  mer = mer >> 2*(k - i - 1);
-  kmer_t mask = static_cast<kmer_t>(3);
-  mer = mask & mer;
-  c.set( static_cast<unsigned>(mer) );
 }
 
 // Push letter onto front of kmer and return kmer
