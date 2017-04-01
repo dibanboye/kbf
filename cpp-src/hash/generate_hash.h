@@ -47,7 +47,8 @@ class generate_hash {
 	 * Using 128 bit type to prevent overflow
 	 * Stores powers in order r^1, r^2, ..., r^k
 	 */
-	vector< largeUnsigned > powersOfR; 
+	vector< largeUnsigned > powersOfR;
+	vector< u_int64_t > powersOfRModP; 
 
         boophf_t* bphf; //MPHF we will generate
 
@@ -94,6 +95,20 @@ class generate_hash {
 	    powersOfR.push_back( ri );
 	  }
 	}
+
+		/*
+	 * Once we know k (k_kmer) and r
+	 * we can precompute the powers of r
+	 */
+	void precomputePowers_mod() {
+	  u_int64_t ri;
+	  powersOfRModP.clear();
+	  //NEED 1 to k. Not 0 to (k - 1)
+	  for (unsigned i = 1; i <= k_kmer; ++i) {
+	    ri = mypower_mod( r, i );
+	    powersOfRModP.push_back( ri );
+	  }
+	}
 	
 
         /**
@@ -101,7 +116,7 @@ class generate_hash {
          */
         u_int64_t get_hash_value(const kmer_t& seq)
         {
-            u_int64_t krv = generate_KRHash_val(seq, k_kmer, Prime);
+            u_int64_t krv = generate_KRHash_val_mod(seq, k_kmer );
             u_int64_t res = this->bphf->lookup(krv); // still need only 64 bits for kmer_t
             return res;
         }
@@ -129,25 +144,22 @@ class generate_hash {
             // prime we will mod out by
 	    const u_int64_t tau = 1;
 	    BOOST_LOG_TRIVIAL(debug) << "Minimum prime: " << tau*k_kmer*n_kmer*n_kmer;
-            u_int64_t P = getPrime(max((u_int64_t)this->sigma, (u_int64_t)tau*k_kmer*n_kmer*n_kmer));
-
-            // Find satisfied base and prime combination
-            //memset(KR_hash_val, 0, n_kmer * sizeof(u_int64_t));
+            Prime = getPrime(max((u_int64_t)this->sigma, (u_int64_t)tau*k_kmer*n_kmer*n_kmer));
 
             // keep generating new base until we find one that is injective over our k-mers
 	    bool f_injective;
 	    do
 	      {
 	      f_injective = true; //assume f is injective until evidence otherwise
-	      this->r = randomNumber((u_int64_t) 1, P-1);
+	      this->r = randomNumber((u_int64_t) 1, Prime-1);
 	      //Once we have a candidate base r
 	      //we should avoid recomputing its powers all the time
-	      precomputePowers();
+	      precomputePowers_mod();
 	      
 	      for ( unordered_set< kmer_t >::iterator
 		      it1 = kmers.begin(); it1 != kmers.end();
 		    ++it1 ) {
-		v = generate_KRHash_val( *it1, k_kmer, P);
+		v = generate_KRHash_val_mod( *it1, k_kmer );
 		//		BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
 		if (this->KRHash.find(v) == this->KRHash.end())
 		  {
@@ -157,7 +169,7 @@ class generate_hash {
 		else // not injective
 		  {
                     BOOST_LOG_TRIVIAL(trace) << "Base " <<this->r << " with prime "
-                       << P << " failed injectivity.";
+                       << Prime << " failed injectivity.";
 		    this->KRHash.clear(); // clear it out and start over
 		    f_injective = false;
 		    break;
@@ -167,8 +179,7 @@ class generate_hash {
 	    } while (!f_injective);
 
 	    
-            BOOST_LOG_TRIVIAL(info) << "Base " << this->r << " with prime " << P << " is injective.";
-	    this->Prime = P;
+            BOOST_LOG_TRIVIAL(info) << "Base " << this->r << " with prime " << Prime << " is injective.";
 
 	    return;
 	}
@@ -181,6 +192,19 @@ class generate_hash {
 	  largeUnsigned rvalue( 1 );
 	  while (exponent > 0) {
 	    rvalue *= static_cast< largeUnsigned >(base);
+	    --exponent;
+	  }
+
+	  return rvalue;
+	}
+
+	/*
+	 * Computes powers modulo P
+	 */
+	u_int64_t mypower_mod( const u_int64_t& base, unsigned exponent ) {
+	  u_int64_t rvalue( 1 );
+	  while (exponent > 0) {
+	     rvalue = (rvalue * base) % Prime ;
 	    --exponent;
 	  }
 
@@ -209,6 +233,31 @@ class generate_hash {
 	  }
 
 	  val = val % P;
+
+	  return static_cast<u_int64_t>(val);
+        }
+
+
+		
+        /**
+         * Given a kmer, find out its KRH
+	 * MODULO Prime P
+         */
+        u_int64_t generate_KRHash_val_mod(const kmer_t& kmer,
+					  const unsigned& k ) {
+
+	  u_int64_t val = 0; // what will be the KRH value
+
+            // go through each bp and add value
+	  for (unsigned i = 0;
+	       i < k;
+	       ++i) {
+	      // val += baseNum(kmer.at(i)) * pow(r, i);
+	     val = val + (access_kmer( kmer, k, i) *
+			  powersOfRModP[i]) % Prime; 
+	  }
+
+	  val = val % Prime;
 
 	  return static_cast<u_int64_t>(val);
         }
@@ -269,6 +318,31 @@ class generate_hash {
 	   KR_val = KR_val / static_cast< largeUnsigned >( r );	   
 	   KR_val = KR_val - static_cast< largeUnsigned >( first );
 	   KR_val = KR_val + static_cast< largeUnsigned >(last) * powersOfR[ k_kmer - 1 ]; // last * r^k
+	}
+
+
+		/*
+	 * This function takes as input a Karp-Rabin value (KR_val)
+	 * Then updates it by subtracting the value from 'first' character source kmer
+	 * Then dividing by r (at this point, it has shifted last k-1 characters up)
+	 * Finally adding the last term corresponding to the 'last' character
+	 *
+	 * target k-mer is OUT neighbor of source k-mer
+	 *
+	 */
+	u_int64_t update_KRHash_val_OUT_mod
+	  ( u_int64_t& KR_val,       //KR hash of source kmer (mod P)
+	    const unsigned& first,   //character at front of source k-mer
+	    const unsigned& last ) { //last character in target k-mer
+	   int64_t kr = KR_val; //convert to signed type
+	   kr = findInverse( kr, static_cast< int64_t > (Prime) );
+	   kr = kr -  first ;
+	   kr = kr + last * powersOfRModP[ k_kmer - 1 ]; // last * r^k
+
+	   while ( kr < 0 )
+	      kr = kr + Prime;
+
+	   return static_cast< u_int64_t>( kr ); 
 	}
 
 	/*

@@ -73,9 +73,11 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(info) << "Read in " << kmers.size() << " kmers of size " << k;
    unordered_set<kmer_t>::iterator i; 
    for (i = kmers.begin(); i != kmers.end(); ++i) {
-      BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, k );
-      BOOST_LOG_TRIVIAL(debug ) << Graph.detect_membership( *i ) << ' '
-				<< Graph.inefficient_detect_membership( *i );
+      //      BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, k );
+      if (!Graph.inefficient_detect_membership( *i )) {
+	 BOOST_LOG_TRIVIAL(fatal) << "Membership test failed.";
+	 exit(1);
+      }
    }
    
    
