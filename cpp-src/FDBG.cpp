@@ -716,6 +716,8 @@ public:
 	}
       }
     }
+
+    kmers.swap( visited_mers );
   }
 
   /**

@@ -152,13 +152,29 @@ class generate_hash {
 
             // prime we will mod out by
 	    const u_int64_t tau = 1;
-	    BOOST_LOG_TRIVIAL(debug) << "Minimum prime: " << tau*k_kmer*n_kmer*n_kmer;
-            Prime = getPrime(max((u_int64_t)this->sigma, (u_int64_t)tau*k_kmer*n_kmer*n_kmer));
+	    BOOST_LOG_TRIVIAL(info) << "Theoretical prime lower bound: " << tau*k_kmer*n_kmer*n_kmer;
+
+	    //Prime = getPrime(max((u_int64_t)this->sigma, (u_int64_t)tau*k_kmer*n_kmer*n_kmer));
+
+	    //Having problem with overflows because of large primes
+	    //Even though the theoretical bound is above, let's try smaller ones.
+	    double smallerPrime = n_kmer*n_kmer / 5.0;
+	    Prime = getPrime((u_int64_t) smallerPrime );
+
+	    BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
 
             // keep generating new base until we find one that is injective over our k-mers
 	    bool f_injective;
-	    do
-	      {
+
+	    unsigned n_failures = 0; //After a few failures, double the prime
+	    do {
+	       if ( n_failures == 5 ) {
+		  BOOST_LOG_TRIVIAL(info) << "Trying a larger prime... ";
+		  Prime = getPrime( Prime * 2 );
+		  n_failures = 0;
+		  BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
+	       }
+	       
 	      f_injective = true; //assume f is injective until evidence otherwise
 	      this->r = randomNumber((u_int64_t) 1, Prime-1);
 	      //Once we have a candidate base r
@@ -181,6 +197,7 @@ class generate_hash {
                        << Prime << " failed injectivity.";
 		    this->KRHash.clear(); // clear it out and start over
 		    f_injective = false;
+		    ++n_failures;
 		    break;
 		  }
 		
