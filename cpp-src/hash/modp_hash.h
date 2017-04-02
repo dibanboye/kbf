@@ -275,12 +275,12 @@ class generate_hash {
 		
         /**
          * Given a kmer, find out its KRH
-	 * MODULO Prime P
+	 * MODULO Prime
+	 * Need to use 128 bits since 4 * x might overflow
          */
         HashInt generate_KRHash_val_mod(const kmer_t& kmer,
 					  const unsigned& k ) {
-
-	  largeUnsigned val = 0; // what will be the KRH value
+	   uint128_t val = 0; // what will be the KRH value
 
             // go through each bp and add value
 	  for (unsigned i = 0;
@@ -288,7 +288,8 @@ class generate_hash {
 	       ++i) {
 	      // val += baseNum(kmer.at(i)) * pow(r, i);
 	     val = val + ((access_kmer( kmer, k, i) *
-			   powersOfRModP[i])) % Prime; 
+			   static_cast< uint128_t >( powersOfRModP[i] )));
+	     val = val % Prime;
 	  }
 
 	  val = val % Prime;

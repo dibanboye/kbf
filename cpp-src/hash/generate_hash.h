@@ -48,10 +48,12 @@ class generate_hash {
     * Stores powers in order r^1, r^2, ..., r^k
     */
    vector< largeUnsigned > powersOfR;
+   vector< u_int64_t > powersOfRModP;
 
    boophf_t* bphf; //MPHF we will generate
 
    u_int64_t r; // the base for our Karp-Rabin Hash function
+   u_int64_t rinv; //inverse of r modulo Prime
    u_int64_t Prime; // the prime for our Karp-Rabin Hash function
 
    const static short sigma = 4; // alphabet size
@@ -78,7 +80,24 @@ class generate_hash {
       BOOST_LOG_TRIVIAL(info) << "Constructing the hash function ...";
       build_KRHash(kmers); // build KR hash function
       build_minimalPerfectHash(); // build minimal perfect hash function
+      
+      //compute inverse of r modulo prime
+      int256_t kr = findInverse( static_cast< int256_t > (r), static_cast< int256_t > (Prime) );
 
+      while ( kr < 0 )
+	 kr = kr + Prime;
+
+      if (kr > Prime)
+	 kr = kr % Prime;
+
+      if ( (kr * r) % Prime == 1 ) {
+	 BOOST_LOG_TRIVIAL(info) << "r-inverse correctly computed modulo prime.";
+      } else {
+	 BOOST_LOG_TRIVIAL(fatal) << "r-inverse incorrectly computed modulo prime!";
+	 exit(1);
+      }
+	  
+      rinv = static_cast< u_int64_t >( kr );
    }
 
    /*
@@ -95,13 +114,36 @@ class generate_hash {
       }
    }
 
+   void precomputePowers_mod() {
+      u_int64_t ri;
+      powersOfRModP.clear();
+      //NEED 1 to k. Not 0 to (k - 1)
+      for (unsigned i = 1; i <= k_kmer; ++i) {
+	 ri = mypower_mod( r, i );
+	 powersOfRModP.push_back( ri );
+      }
+   }
+
+   bool verifyPowers() {
+      for ( unsigned i = 0;
+	    i < powersOfR.size();
+	    ++i ) {
+	 u_int64_t res = static_cast< u_int64_t >( powersOfR[ i ] % Prime );
+	 if (res != powersOfRModP[ i ]) {
+	    BOOST_LOG_TRIVIAL( fatal ) << "Hash computations overflowing.";
+	    exit(1);
+	 }
+      }
+
+      BOOST_LOG_TRIVIAL( info ) << "Powers of r modulo p are computed correctly.";
+   }
 
    /**
     * Find the hash value of a k-mer
     */
    u_int64_t get_hash_value(const kmer_t& seq)
    {
-      u_int64_t krv = generate_KRHash_val(seq, k_kmer, Prime);
+      u_int64_t krv = generate_KRHash_val_mod(seq, k_kmer);
       u_int64_t res = this->bphf->lookup(krv); // still need only 64 bits for kmer_t
       return res;
    }
@@ -124,8 +166,6 @@ class generate_hash {
 
       BOOST_LOG_TRIVIAL(info) << "Constructing Karp-Rabin hash function ...";
 
-      u_int64_t v; // holder for KRH value
-
       // prime we will mod out by
       const u_int64_t tau = 1;
 
@@ -141,6 +181,8 @@ class generate_hash {
       unsigned n_failures = 0;
       // keep generating new base until we find one that is injective over our k-mers
       bool f_injective;
+      u_int64_t v1, v2; // holder for KRH value
+
       do
 	 {
 	    ++n_failures;
@@ -156,17 +198,26 @@ class generate_hash {
 	    this->r = randomNumber((u_int64_t) 1, Prime-1);
 	    //Once we have a candidate base r
 	    //we should avoid recomputing its powers all the time
-	    precomputePowers();
-
+	    
+	    //	    precomputePowers();
+	    precomputePowers_mod();
+	    //	    verifyPowers();
+	    
 	    for ( unordered_set< kmer_t >::iterator
 		     it1 = kmers.begin(); it1 != kmers.end();
 		  ++it1 ) {
-	       v = generate_KRHash_val( *it1, k_kmer, Prime);
+	       v1 = generate_KRHash_val_mod( *it1, k_kmer );
+	       //	       v2 = generate_KRHash_val( *it1, k_kmer, Prime);
+	       //	       if (v1 != v2) {
+	       //		  BOOST_LOG_TRIVIAL(fatal) << "Error in Karp-rabin computations.";
+	       //		  exit(1);
+	       //	       }
+	       
 	       //BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
-	       if (this->KRHash.find(v) == this->KRHash.end())
+	       if (this->KRHash.find(v1) == this->KRHash.end())
 		  {
 		     // this is a new value
-		     this->KRHash.insert(v);
+		     this->KRHash.insert(v1);
 		  }
 	       else // not injective
 		  {
@@ -188,7 +239,7 @@ class generate_hash {
 
 
    /*
-    * Computes powers with u_int64_t and integer exponents
+    * Computes large powers with large ints
     */
    largeUnsigned mypower( const u_int64_t& base, unsigned exponent ) {
       largeUnsigned rvalue( 1 );
@@ -200,7 +251,45 @@ class generate_hash {
       return rvalue;
    }
 
+   /*
+    * Computes powers mod p with u_int64_t and integer exponents
+    * Uses larger arithmetic type to prevent overflow
+    * Returns a u_int64_t because it mods out before returning
+    */
+   u_int64_t mypower_mod( const u_int64_t& base, unsigned exponent ) {
+      uint128_t rvalue( 1 );
+      while (exponent > 0) {
+	 rvalue = rvalue * base;
+	 rvalue = rvalue % Prime;
+	 --exponent;
+      }
 
+      return static_cast< u_int64_t >( rvalue );
+   }
+   
+   /**
+    * Given a kmer, find out its KRH
+    * MODULO Prime
+    * Need to use 128 bits since 4 * x might overflow
+    */
+   u_int64_t generate_KRHash_val_mod(const kmer_t& kmer,
+				     const unsigned& k ) {
+      uint128_t val = 0; // what will be the KRH value
+
+      // go through each bp and add value
+      for (unsigned i = 0;
+	   i < k;
+	   ++i) {
+	 // val += baseNum(kmer.at(i)) * pow(r, i);
+	 val = val + ((access_kmer( kmer, k, i) *
+		       static_cast< uint128_t >( powersOfRModP[i] )));
+	 val = val % Prime;
+      }
+
+      return static_cast<u_int64_t>(val);
+   }
+
+   
    /**
     * Given a kmer, find out its KRH using base r and prime P
     */
@@ -302,7 +391,82 @@ class generate_hash {
       KR_val = KR_val + first * r;
    }
 
+   typedef number<cpp_int_backend<128, 128, unsigned_magnitude, checked, void> > moduloInt;
+   u_int64_t update_KRHash_val_OUT_mod
+      ( u_int64_t& KR_val,       //KR hash of source kmer (mod P)
+	const unsigned& first,   //character at front of source k-mer
+	const unsigned& last ) { //last character in target k-mer
+      //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT(mod)...";
+      //	   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
+      //	   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
+      moduloInt rinv = this->rinv;
+      moduloInt Prime = this->Prime;
+      moduloInt kr = KR_val;
+      moduloInt llast = last;
+      moduloInt ffirst = first;
+      moduloInt rk = powersOfRModP[ k_kmer - 1 ];
+      moduloInt four = 4;
+	   
+      moduloInt sub_val = four*Prime - ffirst * r;
+      kr = (kr + sub_val );
+      kr = (kr * rinv);
+      kr = (kr + llast * rk);
 
+	   //	   moduloInt q, rem;
+	   //	   divide_qr( kr, Prime, q, rem );
+	   //	   HashInt kr2 = integer_modulus( kr, this->Prime );
+      kr = kr % Prime;
+
+	   //	   while (kr > Prime)
+	   //	      kr = kr - Prime;
+
+	   //	   kr = kr - (kr / Prime)*Prime;
+	   
+      return static_cast< u_int64_t >( kr ); 
+   }
+
+   /*
+    * This function takes as input a Karp-Rabin value (KR_val) modulo Prime
+    *
+    * target k-mer is IN neighbor of source k-mer
+    */
+   u_int64_t update_KRHash_val_IN_mod
+      ( u_int64_t& KR_val,       //KR hash of source kmer
+	const unsigned& first,   //character at front of target k-mer
+	const unsigned& last ) { //last character in source k-mer
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN(mod)...";
+	   //	   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
+
+      moduloInt r = this->r;
+      moduloInt Prime = this->Prime;
+      moduloInt kr = KR_val;
+      moduloInt llast = last;
+      moduloInt ffirst = first;
+      moduloInt rk = powersOfRModP[ k_kmer - 1 ];
+      moduloInt four = 4;
+	   
+      moduloInt sub_val = four*Prime - llast*rk;
+
+      kr = (kr + sub_val) ; // last * r^k
+      kr = (kr * r) ;
+      kr = (kr + ffirst * r) ;
+
+      //	   moduloInt q, rem;
+      //	   divide_qr( kr, Prime, q, rem );
+      //	   HashInt kr2 = integer_modulus( kr, this->Prime );
+      kr = kr % Prime;
+
+      //	   while (kr > Prime)
+      //	      kr = kr - Prime;
+      
+      //	   kr = kr - (kr / Prime)*Prime;
+	   
+      return static_cast< u_int64_t > (kr) ;
+	   
+   }
+
+   
    /*
     * Looks up the minimal perfect hash value, given the Karp-Rabin (raw value)
     * KR raw value means not modded out by the prime yet.
@@ -310,6 +474,13 @@ class generate_hash {
    u_int64_t perfect_from_KR( const largeUnsigned& KR_val ) {
       largeUnsigned KR2 = KR_val % Prime;
       return this->bphf->lookup( static_cast< u_int64_t >(KR2) );
+   }
+
+   /*
+    * Looks up the minimal perfect hash value, given the Karp-Rabin (value modulo Prime)
+    */
+   u_int64_t perfect_from_KR_mod( const u_int64_t& KR_val ) {
+      return this->bphf->lookup( KR_val );
    }
 
    /**
