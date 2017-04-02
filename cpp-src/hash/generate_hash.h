@@ -16,240 +16,249 @@ using namespace boost::multiprecision;
 
 using namespace std;
 
-typedef boomphf::SingleHashFunctor<u_int64_t>  hasher_t;
-typedef boomphf::mphf<  u_int64_t, hasher_t  > boophf_t;
+typedef boomphf::SingleHashFunctor<u_int64_t> hasher_t;
+typedef boomphf::mphf<u_int64_t, hasher_t> boophf_t;
 
 //For now, this is our big int class. If we need more than 1024 bits, we can increase
 //LARGE_BITS should be a power of 2
 #define LARGE_BITS 1024
-typedef number<cpp_int_backend< LARGE_BITS, LARGE_BITS, unsigned_magnitude, checked, void> > largeUnsigned;
+typedef number<cpp_int_backend<LARGE_BITS, LARGE_BITS, unsigned_magnitude, checked, void>> largeUnsigned;
 
 /**
  * Take in a set of k-mers, generate a hash function
  */
-class generate_hash {
+class generate_hash
+{
 
- public:
-   u_int64_t n_kmer; //the number of k-mers
-   unsigned k_kmer; //the lengths of the k-mers (max 32)
+    public:
+      u_int64_t n_kmer; //the number of k-mers
+      unsigned k_kmer;  //the lengths of the k-mers (max 32)
 
-   vector<string> kmer_data; // pointer to kmer_data TODO: should read from file
+      vector<string> kmer_data; // pointer to kmer_data TODO: should read from file
 
-   std::unordered_set<u_int64_t> KRHash; //image of k-mers through Karp-Rabin hash function
-   //std::vector<u_int64_t> KRHash_vec; //vector form
+      std::unordered_set<u_int64_t> KRHash; //image of k-mers through Karp-Rabin hash function
+      //std::vector<u_int64_t> KRHash_vec; //vector form
 
-   //the image of our k-mers under our Karp-Rabin hash function
-   //vector<u_int64_t> KR_hash_val;
+      //the image of our k-mers under our Karp-Rabin hash function
+      //vector<u_int64_t> KR_hash_val;
 
-   /* 
+      /* 
     * Will store the precomputed powers of 
     * Needs to be a vector will have k distinct powers
     * Using 128 bit type to prevent overflow
     * Stores powers in order r^1, r^2, ..., r^k
     */
-   vector< largeUnsigned > powersOfR;
+      vector<largeUnsigned> powersOfR;
 
-   boophf_t* bphf; //MPHF we will generate
+      boophf_t *bphf; //MPHF we will generate
 
-   u_int64_t r; // the base for our Karp-Rabin Hash function
-   u_int64_t Prime; // the prime for our Karp-Rabin Hash function
+      u_int64_t r;     // the base for our Karp-Rabin Hash function
+      u_int64_t Prime; // the prime for our Karp-Rabin Hash function
 
-   const static short sigma = 4; // alphabet size
+      const static short sigma = 4; // alphabet size
 
-   /**
+      /**
     * Create hash function out of n k-mers of length k
     */
-   generate_hash( unordered_set< kmer_t >& kmers , u_int64_t n , unsigned k ) {
-      //  std::srand(std::time(NULL));
-      std::srand( 0 );
+      generate_hash(unordered_set<kmer_t> &kmers, u_int64_t n, unsigned k)
+      {
+            //  std::srand(std::time(NULL));
+            std::srand(0);
 
-      construct_hash_function( kmers,  n,  k );
-   }
+            construct_hash_function(kmers, n, k);
+      }
 
-   generate_hash() {
-      //default constructor
-      std::srand(std::time(NULL));
-   }
+      generate_hash()
+      {
+            //default constructor
+            std::srand(std::time(NULL));
+      }
 
-   void construct_hash_function( unordered_set< kmer_t >& kmers , u_int64_t n , unsigned k ) {
-      this->n_kmer = n; // number of k-mers
-      this->k_kmer = k; // length of each k-mer
+      void construct_hash_function(unordered_set<kmer_t> &kmers, u_int64_t n, unsigned k)
+      {
+            this->n_kmer = n; // number of k-mers
+            this->k_kmer = k; // length of each k-mer
 
-      BOOST_LOG_TRIVIAL(info) << "Constructing the hash function ...";
-      build_KRHash(kmers); // build KR hash function
-      build_minimalPerfectHash(); // build minimal perfect hash function
+            BOOST_LOG_TRIVIAL(info) << "Constructing the hash function ...";
+            build_KRHash(kmers);        // build KR hash function
+            build_minimalPerfectHash(); // build minimal perfect hash function
+      }
 
-   }
-
-   /*
+      /*
     * Once we know k (k_kmer) and r
     * we can precompute the powers of r
     */
-   void precomputePowers() {
-      largeUnsigned ri;
-      powersOfR.clear();
-      //NEED 1 to k. Not 0 to (k - 1)
-      for (unsigned i = 1; i <= k_kmer; ++i) {
-	 ri = mypower( r, i );
-	 powersOfR.push_back( ri );
+      void precomputePowers()
+      {
+            largeUnsigned ri;
+            powersOfR.clear();
+            //NEED 1 to k. Not 0 to (k - 1)
+            for (unsigned i = 1; i <= k_kmer; ++i)
+            {
+                  ri = mypower(r, i);
+                  powersOfR.push_back(ri);
+            }
       }
-   }
 
-
-   /**
+      /**
     * Find the hash value of a k-mer
     */
-   u_int64_t get_hash_value(const kmer_t& seq)
-   {
-      u_int64_t krv = generate_KRHash_val(seq, k_kmer, Prime);
-      u_int64_t res = this->bphf->lookup(krv); // still need only 64 bits for kmer_t
-      return res;
-   }
+      u_int64_t get_hash_value(const kmer_t &seq)
+      {
+            u_int64_t krv = generate_KRHash_val(seq, k_kmer, Prime);
+            u_int64_t res = this->bphf->lookup(krv); // still need only 64 bits for kmer_t
+            return res;
+      }
 
-   /**
+      /**
     * Find the hash value of a k-mer
     * Allows f( v ) notation
     */
-   u_int64_t operator()(const kmer_t& seq) {
-      return get_hash_value( seq );
-   }
+      u_int64_t operator()(const kmer_t &seq)
+      {
+            return get_hash_value(seq);
+      }
 
+      // Task4: generate_KRHash_val
+      // data is a k-mer
+      // k is the length of the k-mer
+      // r is the base
+      // P is the prime
+      void build_KRHash(unordered_set<kmer_t> &kmers)
+      {
 
-   // Task4: generate_KRHash_val
-   // data is a k-mer
-   // k is the length of the k-mer
-   // r is the base
-   // P is the prime
-   void build_KRHash( unordered_set< kmer_t >& kmers ){
+            BOOST_LOG_TRIVIAL(info) << "Constructing Karp-Rabin hash function ...";
 
-      BOOST_LOG_TRIVIAL(info) << "Constructing Karp-Rabin hash function ...";
+            u_int64_t v; // holder for KRH value
 
-      u_int64_t v; // holder for KRH value
+            // prime we will mod out by
+            const u_int64_t tau = 1;
 
-      // prime we will mod out by
-      const u_int64_t tau = 1;
+            BOOST_LOG_TRIVIAL(info) << "Theoretical prime lower bound: " << tau * k_kmer * n_kmer * n_kmer;
 
-      BOOST_LOG_TRIVIAL(info) << "Theoretical prime lower bound: " << tau*k_kmer*n_kmer*n_kmer;
+            //Having problem with overflows because of large primes
+            //Even though the theoretical bound is above, let's try smaller ones.
+            double smallerPrime = n_kmer * n_kmer / 5.0;
+            Prime = getPrime((u_int64_t)smallerPrime);
 
-      //Having problem with overflows because of large primes
-      //Even though the theoretical bound is above, let's try smaller ones.
-      double smallerPrime = n_kmer*n_kmer / 5.0;
-      Prime = getPrime((u_int64_t) smallerPrime );
+            BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
 
-      BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
-      
-      unsigned n_failures = 0;
-      // keep generating new base until we find one that is injective over our k-mers
-      bool f_injective;
-      do
-	 {
-	    ++n_failures;
-	    if ( n_failures == 5 ) {
-	       BOOST_LOG_TRIVIAL(info) << "Trying a larger prime... ";
-	       Prime = getPrime( Prime * 2 );
-	       n_failures = 0;
-	       BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
-	    }
+            unsigned n_failures = 0;
+            // keep generating new base until we find one that is injective over our k-mers
+            bool f_injective;
+            do
+            {
+                  ++n_failures;
+                  if (n_failures == 5)
+                  {
+                        BOOST_LOG_TRIVIAL(info) << "Trying a larger prime... ";
+                        Prime = getPrime(Prime * 2);
+                        n_failures = 0;
+                        BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
+                  }
 
-	    
-	    f_injective = true; //assume f is injective until evidence otherwise
-	    this->r = randomNumber((u_int64_t) 1, Prime-1);
-	    //Once we have a candidate base r
-	    //we should avoid recomputing its powers all the time
-	    precomputePowers();
+                  f_injective = true; //assume f is injective until evidence otherwise
+                  this->r = randomNumber((u_int64_t)1, Prime - 1);
+                  //Once we have a candidate base r
+                  //we should avoid recomputing its powers all the time
+                  precomputePowers();
 
-	    for ( unordered_set< kmer_t >::iterator
-		     it1 = kmers.begin(); it1 != kmers.end();
-		  ++it1 ) {
-	       v = generate_KRHash_val( *it1, k_kmer, Prime);
-	       //BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
-	       if (this->KRHash.find(v) == this->KRHash.end())
-		  {
-		     // this is a new value
-		     this->KRHash.insert(v);
-		  }
-	       else // not injective
-		  {
-			 BOOST_LOG_TRIVIAL(trace) << "Base " <<this->r << " with prime "
-						  << Prime << " failed injectivity.";
-			 this->KRHash.clear(); // clear it out and start over
-			 f_injective = false;
-			 break;
-		      }
+                  for (unordered_set<kmer_t>::iterator
+                           it1 = kmers.begin();
+                       it1 != kmers.end();
+                       ++it1)
+                  {
+                        v = generate_KRHash_val(*it1, k_kmer, Prime);
+                        //BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
+                        if (this->KRHash.find(v) == this->KRHash.end())
+                        {
+                              // this is a new value
+                              this->KRHash.insert(v);
+                        }
+                        else // not injective
+                        {
+                              BOOST_LOG_TRIVIAL(trace) << "Base " << this->r << " with prime "
+                                                       << Prime << " failed injectivity.";
+                              this->KRHash.clear(); // clear it out and start over
+                              f_injective = false;
+                              break;
+                        }
+                  }
+            } while (!f_injective);
 
-		}
-	     } while (!f_injective);
+            BOOST_LOG_TRIVIAL(info) << "Base " << this->r << " with prime " << Prime << " is injective.";
 
+            return;
+      }
 
-	  BOOST_LOG_TRIVIAL(info) << "Base " << this->r << " with prime " << Prime << " is injective.";
-
-	  return;
-   }
-
-
-   /*
+      /*
     * Computes powers with u_int64_t and integer exponents
     */
-   largeUnsigned mypower( const u_int64_t& base, unsigned exponent ) {
-      largeUnsigned rvalue( 1 );
-      while (exponent > 0) {
-	 rvalue *= static_cast< largeUnsigned >(base);
-	 --exponent;
+      largeUnsigned mypower(const u_int64_t &base, unsigned exponent)
+      {
+            largeUnsigned rvalue(1);
+            while (exponent > 0)
+            {
+                  rvalue *= static_cast<largeUnsigned>(base);
+                  --exponent;
+            }
+
+            return rvalue;
       }
 
-      return rvalue;
-   }
-
-
-   /**
+      /**
     * Given a kmer, find out its KRH using base r and prime P
     */
-   u_int64_t generate_KRHash_val(const kmer_t& kmer,
-				 const unsigned& k,
-				 const u_int64_t& P){
-      //  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
-      //use 128 bits to prevent overflow
-      largeUnsigned val = 0; // what will be the KRH value
+      u_int64_t generate_KRHash_val(const kmer_t &kmer,
+                                    const unsigned &k,
+                                    const u_int64_t &P)
+      {
+            //  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
+            //use 128 bits to prevent overflow
+            largeUnsigned val = 0; // what will be the KRH value
 
-      // go through each bp and add value
-      for (unsigned i = 0;
-	   i < k;
-	   ++i) {
-	 // val += baseNum(kmer.at(i)) * pow(r, i);
-	       val +=
-		  static_cast< largeUnsigned > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
-		  powersOfR[i]; //powersOfR[i] = r^{i + 1}
+            // go through each bp and add value
+            for (unsigned i = 0;
+                 i < k;
+                 ++i)
+            {
+                  // val += baseNum(kmer.at(i)) * pow(r, i);
+                  val +=
+                      static_cast<largeUnsigned>(access_kmer(kmer, k, static_cast<unsigned>(i))) *
+                      powersOfR[i]; //powersOfR[i] = r^{i + 1}
+            }
+
+            val = val % P;
+
+            return static_cast<u_int64_t>(val);
       }
 
-      val = val % P;
-
-      return static_cast<u_int64_t>(val);
-   }
-
-   /**
+      /**
     * Given a kmer, find out its KRH using base r and prime P
     * HOWEVER: does not mod out by P. So returns large unsigned
          */
-   largeUnsigned generate_KRHash_raw(const kmer_t& kmer,
-				     const unsigned& k ) {
-      //  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
-      //use 128 bits to prevent overflow
-      largeUnsigned val = 0; // what will be the KRH value
+      largeUnsigned generate_KRHash_raw(const kmer_t &kmer,
+                                        const unsigned &k)
+      {
+            //  BOOST_LOG_TRIVIAL(trace) << "Generating KRHash val";
+            //use 128 bits to prevent overflow
+            largeUnsigned val = 0; // what will be the KRH value
 
-      // go through each bp and add value
-      for (unsigned i = 0;
-	   i < k;
-	   ++i) {
-	 // val += baseNum(kmer.at(i)) * pow(r, i);
-	       val +=
-		  static_cast< largeUnsigned > ( access_kmer( kmer, k, static_cast<unsigned>(i)) ) *
-		  powersOfR[i]; //powersOfR[i] = r^{i + 1}
+            // go through each bp and add value
+            for (unsigned i = 0;
+                 i < k;
+                 ++i)
+            {
+                  // val += baseNum(kmer.at(i)) * pow(r, i);
+                  val +=
+                      static_cast<largeUnsigned>(access_kmer(kmer, k, static_cast<unsigned>(i))) *
+                      powersOfR[i]; //powersOfR[i] = r^{i + 1}
+            }
+
+            return val;
       }
 
-      return val;
-   }
-
-   /*
+      /*
     * This function takes as input a Karp-Rabin value (KR_val)
     * Then updates it by subtracting the value from 'first' character source kmer
     * Then dividing by r (at this point, it has shifted last k-1 characters up)
@@ -258,91 +267,90 @@ class generate_hash {
     * target k-mer is OUT neighbor of source k-mer
     *
     */
-   void update_KRHash_val_OUT
-      ( largeUnsigned& KR_val,       //KR hash of source kmer
-	const unsigned& first,   //character at front of source k-mer
-	const unsigned& last ) { //last character in target k-mer
-      //   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT...";
-      //   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
-      //   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
+      void update_KRHash_val_OUT(largeUnsigned &KR_val, //KR hash of source kmer
+                                 const unsigned &first, //character at front of source k-mer
+                                 const unsigned &last)
+      { //last character in target k-mer
+            //   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT...";
+            //   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
+            //   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
 
-      //   largeUnsigned before_div = KR_val;
-      //   BOOST_LOG_TRIVIAL(debug) << "Value before division: " << before_div;
+            //   largeUnsigned before_div = KR_val;
+            //   BOOST_LOG_TRIVIAL(debug) << "Value before division: " << before_div;
 
-      //   BOOST_LOG_TRIVIAL(debug) << "Division check: " << (KR_val * static_cast< largeUnsigned >( r ) == before_div );
+            //   BOOST_LOG_TRIVIAL(debug) << "Division check: " << (KR_val * static_cast< largeUnsigned >( r ) == before_div );
 
-      //   KR_val = before_div;
-      //largeUnsigned q;
-      //   largeUnsigned rem;
-      //   divide_qr( KR_val, static_cast< largeUnsigned >( r ),  q, rem );
+            //   KR_val = before_div;
+            //largeUnsigned q;
+            //   largeUnsigned rem;
+            //   divide_qr( KR_val, static_cast< largeUnsigned >( r ),  q, rem );
 
-      //   BOOST_LOG_TRIVIAL(debug) << "Division check 2: " << (q * static_cast< largeUnsigned >( r ) == before_div );
+            //   BOOST_LOG_TRIVIAL(debug) << "Division check 2: " << (q * static_cast< largeUnsigned >( r ) == before_div );
 
-      //   BOOST_LOG_TRIVIAL(debug) << "Remainder: " << rem;
-      KR_val = KR_val / static_cast< largeUnsigned >( r );
-      KR_val = KR_val - static_cast< largeUnsigned >( first );
-      KR_val = KR_val + static_cast< largeUnsigned >(last) * powersOfR[ k_kmer - 1 ]; // last * r^k
-   }
+            //   BOOST_LOG_TRIVIAL(debug) << "Remainder: " << rem;
+            KR_val = KR_val / static_cast<largeUnsigned>(r);
+            KR_val = KR_val - static_cast<largeUnsigned>(first);
+            KR_val = KR_val + static_cast<largeUnsigned>(last) * powersOfR[k_kmer - 1]; // last * r^k
+      }
 
-   /*
+      /*
     * This function takes as input a Karp-Rabin value (KR_val)
     *
     * target k-mer is IN neighbor of source k-mer
     */
-   void update_KRHash_val_IN
-      ( largeUnsigned& KR_val,       //KR hash of source kmer
-	const unsigned& first,   //character at front of target k-mer
-	const unsigned& last ) { //last character in source k-mer
-      //   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN...";
-      //   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
-      //   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
+      void update_KRHash_val_IN(largeUnsigned &KR_val, //KR hash of source kmer
+                                const unsigned &first, //character at front of target k-mer
+                                const unsigned &last)
+      { //last character in source k-mer
+            //   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN...";
+            //   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
+            //   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
 
-      KR_val = KR_val - last * powersOfR[ k_kmer - 1 ]; // last * r^k
-      KR_val = KR_val * r;
-      KR_val = KR_val + first * r;
-   }
+            KR_val = KR_val - last * powersOfR[k_kmer - 1]; // last * r^k
+            KR_val = KR_val * r;
+            KR_val = KR_val + first * r;
+      }
 
-
-   /*
+      /*
     * Looks up the minimal perfect hash value, given the Karp-Rabin (raw value)
     * KR raw value means not modded out by the prime yet.
         */
-   u_int64_t perfect_from_KR( const largeUnsigned& KR_val ) {
-      largeUnsigned KR2 = KR_val % Prime;
-      return this->bphf->lookup( static_cast< u_int64_t >(KR2) );
-   }
+      u_int64_t perfect_from_KR(const largeUnsigned &KR_val)
+      {
+            largeUnsigned KR2 = KR_val % Prime;
+            return this->bphf->lookup(static_cast<u_int64_t>(KR2));
+      }
 
-   /**
+      /**
     * Build a minimal perfect hash function on the set of integers that our kmers are
     * mapped to via KRH
     */
-   void build_minimalPerfectHash(){
+      void build_minimalPerfectHash()
+      {
 
-      //std::sort(KR_hash_val, KR_hash_val+n_kmer);
-      //u_int64_t jj = 0;
-      //for (int ii = 1; ii < n_kmer; ii++) {
-      //    if (KR_hash_val[ii] != KR_hash_val[jj])
-      //        KR_hash_val[++jj] = KR_hash_val[ii];
-      //}
-      //printf("Found %lli duplicated items from KR_hash_val.  \n", n_kmer-(jj + 1) );
+            //std::sort(KR_hash_val, KR_hash_val+n_kmer);
+            //u_int64_t jj = 0;
+            //for (int ii = 1; ii < n_kmer; ii++) {
+            //    if (KR_hash_val[ii] != KR_hash_val[jj])
+            //        KR_hash_val[++jj] = KR_hash_val[ii];
+            //}
+            //printf("Found %lli duplicated items from KR_hash_val.  \n", n_kmer-(jj + 1) );
 
-      //auto data_iterator = boomphf::range(static_cast<const u_int64_t*>(KR_hash_val), static_cast<const u_int64_t*>(KR_hash_val+n_kmer));
+            //auto data_iterator = boomphf::range(static_cast<const u_int64_t*>(KR_hash_val), static_cast<const u_int64_t*>(KR_hash_val+n_kmer));
 
-      //            bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, data_iterator, nthreads, gammaFactor);
+            //            bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, data_iterator, nthreads, gammaFactor);
 
-      BOOST_LOG_TRIVIAL(info) << "Building minimal perfect hash function ...";
+            BOOST_LOG_TRIVIAL(info) << "Building minimal perfect hash function ...";
 
-      std::vector<u_int64_t> KRHash_vec = std::vector<u_int64_t>(this->KRHash.begin(),
-								 this->KRHash.end());
+            std::vector<u_int64_t> KRHash_vec = std::vector<u_int64_t>(this->KRHash.begin(),
+                                                                       this->KRHash.end());
 
-      // MPHF for our KRHash function values
-      this->bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, KRHash_vec, 4, 2.0, true, false);
+            // MPHF for our KRHash function values
+            this->bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, KRHash_vec, 4, 2.0, true, false);
 
-      BOOST_LOG_TRIVIAL(info) << "Minimal perfect hash function created with "
-			      << (float) (bphf->totalBitSize())/n_kmer << " bits per element.";
-   }
-
-
+            BOOST_LOG_TRIVIAL(info) << "Minimal perfect hash function created with "
+                                    << (float)(bphf->totalBitSize()) / n_kmer << " bits per element.";
+      }
 };
 
 #endif
