@@ -46,7 +46,7 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, B
     }
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
-    cerr << "@@query time: " << elapsed_seconds.count() << " s" << endl;
+    cout << "@@query time: " << elapsed_seconds.count() << endl;
     // end the timing here
 
     double accuracy = 0.0;
@@ -82,7 +82,7 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, F
     }
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
-    cerr << "@@query time: " << elapsed_seconds.count() << " s" << endl;
+    cout << "@@query time: " << elapsed_seconds.count() << endl;
     // end the timing here
 
     double accuracy = 0.0;
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
         // Test KBF2
         unordered_set<kmer_t> edge_kmers;
         read_kmers.clear();
-        cerr << "########## KBF2 ##########" << endl;
+        cout << "########## KBF2 ##########" << endl;
         auto start = std::chrono::system_clock::now();
         vector<string> reads = parseFasta(input_fasta);
         getKmersAndEdgeKmers(reads, K, 1, read_kmers, edge_kmers);
