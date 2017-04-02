@@ -76,7 +76,7 @@ void queryKmers(vector<kmer_t> & test_kmers, unordered_set<kmer_t> & true_kmers,
     // time this part
     auto start = std::chrono::system_clock::now();
     for (auto qk : test_kmers) {
-        bool state = fdbg.inefficient_detect_membership(qk);
+       bool state = fdbg.inefficient_detect_membership(qk);
         states.push_back(state);
     }
     auto end = std::chrono::system_clock::now();
@@ -254,7 +254,8 @@ int main(int argc, char* argv[]) {
         read_kmers.clear();
     	BOOST_LOG_TRIVIAL(info) << "#### KBF2 ####" << endl;
         auto start = std::chrono::system_clock::now();
-	//getKmersAndEdgeKmers(reads, K, 1, read_kmers, edge_kmers);
+	vector<string> reads = parseFasta( input_fasta );
+    	getKmersAndEdgeKmers(reads, K, 1, read_kmers, edge_kmers);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
         BOOST_LOG_TRIVIAL(info) << "Parse fasta, get kmers, potential edge kmers for KBF2: " << elapsed_seconds.count() << " s" << endl;

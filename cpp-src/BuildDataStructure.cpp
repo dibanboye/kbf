@@ -27,7 +27,8 @@ int main(int argc, char* argv[]) {
    boost::log::core::get()->set_filter(boost::log::trivial::severity
       >= boost::log::trivial::trace);
 
-   BOOST_LOG_TRIVIAL(info) << "Beginning to build data structure ...";   
+   BOOST_LOG_TRIVIAL(info) << "Beginning to build data structure ...";
+   //   BOOST_LOG_TRIVIAL(info) << "Size of uint128_t ..." << sizeof( uint128_t );   
 
    // Check if the user put in the correct command line arguments
    if (argc < 3) {
@@ -76,7 +77,7 @@ int main(int argc, char* argv[]) {
    for (i = kmers.begin(); i != kmers.end(); ++i) {
       //      BOOST_LOG_TRIVIAL(debug) << "Testing k-mer: " << *i << ' ' << get_kmer_str( *i, k );
       //      BOOST_LOG_TRIVIAL(debug) << Graph.inefficient_detect_membership( *i ) << ' ' << Graph.detect_membership( *i );
-            if (!Graph.inefficient_detect_membership( *i )) {
+            if (!Graph.detect_membership( *i )) {
             	 BOOST_LOG_TRIVIAL(fatal) << "Membership test failed.";
             	 exit(1);
             }

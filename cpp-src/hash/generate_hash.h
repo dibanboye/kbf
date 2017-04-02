@@ -88,6 +88,13 @@ class generate_hash {
 	  if (kr > Prime)
 	     kr = kr % Prime;
 
+	  if ( (kr * r) % Prime == 1 ) {
+	     BOOST_LOG_TRIVIAL(info) << "r-inverse correctly computed modulo prime.";
+	  } else {
+	     BOOST_LOG_TRIVIAL(fatal) << "r-inverse incorrectly computed modulo prime!";
+	     exit(1);
+	  }
+	  
 	  rinv = static_cast< u_int64_t >( kr );
 	}
 
@@ -356,24 +363,33 @@ class generate_hash {
 	 * target k-mer is OUT neighbor of source k-mer
 	 *
 	 */
+
+	typedef number<cpp_int_backend<1024, 1024, unsigned_magnitude, checked, void> > moduloInt;
 	u_int64_t update_KRHash_val_OUT_mod
 	  ( u_int64_t& KR_val,       //KR hash of source kmer (mod P)
 	    const unsigned& first,   //character at front of source k-mer
 	    const unsigned& last ) { //last character in target k-mer
-	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT(mod)...";
-	   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
-	   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
-
-
-	   uint128_t kr = KR_val;
-	   uint128_t sub_val = 4* static_cast< uint128_t >(Prime) - first * r;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT(mod)...";
+	   //	   BOOST_LOG_TRIVIAL(debug) << "First of source: " << first;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Last of target: " << last;
+	   moduloInt rinv = this->rinv;
+	   moduloInt Prime = this->Prime;
+	   moduloInt kr = KR_val;
+	   moduloInt llast = last;
+	   moduloInt ffirst = first;
+	   moduloInt rk = powersOfRModP[ k_kmer - 1 ];
+	   moduloInt four = 4;
+	   
+	   moduloInt sub_val = four*Prime - ffirst * r;
 	   kr = (kr + sub_val );
 	   kr = (kr * rinv);
-	   kr = (kr + last * powersOfRModP[ k_kmer - 1 ]); // last * r^k
-	   kr = kr % Prime;
+	   kr = (kr + llast * rk);
 
-	   BOOST_LOG_TRIVIAL(debug) << "Done with OUT_mod. ";
-	   return static_cast< u_int64_t>( kr ); 
+	   moduloInt q, rem;
+	   divide_qr( kr, Prime, q, rem );
+	   //	   u_int64_t kr2 = integer_modulus( kr, this->Prime );
+	   //	   kr = kr % Prime;
+	   return static_cast< u_int64_t>( rem ); 
 	}
 
 	/*
@@ -385,20 +401,30 @@ class generate_hash {
 	  ( u_int64_t& KR_val,       //KR hash of source kmer
 	    const unsigned& first,   //character at front of target k-mer
 	    const unsigned& last ) { //last character in source k-mer
-	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN(mod)...";
-	   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
-	   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN(mod)...";
+	   //	   BOOST_LOG_TRIVIAL(debug) << "First of target: " << first;
+	   //	   BOOST_LOG_TRIVIAL(debug) << "Last of source: " << last;
 
-	   uint128_t kr = KR_val;
-	   uint128_t sub_val = 4* static_cast< uint128_t > (Prime) - last*powersOfRModP[ k_kmer - 1];
-	   BOOST_LOG_TRIVIAL(debug) << "4*Prime: " << 4*Prime;
-	   BOOST_LOG_TRIVIAL(debug) << "last*powersOfRModP[k_kmer - 1]: " << last*powersOfRModP[ k_kmer - 1];
-	   kr = (kr + sub_val); // last * r^k
+	   moduloInt r = this->r;
+	   moduloInt Prime = this->Prime;
+	   moduloInt kr = KR_val;
+	   moduloInt llast = last;
+	   moduloInt ffirst = first;
+	   moduloInt rk = powersOfRModP[ k_kmer - 1 ];
+	   moduloInt four = 4;
+	   
+	   moduloInt sub_val = four*Prime - llast*rk;
+
+	   kr = (kr + sub_val) ; // last * r^k
 	   kr = (kr * r) ;
-	   kr = (kr + first * r) ;
-	   kr = kr % Prime;
-	   BOOST_LOG_TRIVIAL(debug) << "Done with IN_mod. ";
-	   return static_cast< u_int64_t > (kr) ;
+	   kr = (kr + ffirst * r) ;
+
+	   moduloInt q, rem;
+	   divide_qr( kr, Prime, q, rem );
+	   //	   u_int64_t kr2 = integer_modulus( kr, this->Prime );
+	   //	   kr = kr % Prime;
+
+	   return static_cast< u_int64_t > (rem) ;
 
 	}
 

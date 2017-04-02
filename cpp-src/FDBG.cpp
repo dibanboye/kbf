@@ -443,7 +443,7 @@ public:
      u_int64_t KR_val = f.generate_KRHash_val_mod( m, k ) ;
      u_int64_t hash = f.perfect_from_KR( KR_val );
     
-     BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
+     //     BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
     
     //    BOOST_LOG_TRIVIAL(debug) << "It has hash value " << hash;
 
@@ -497,9 +497,9 @@ public:
 	hash = f.perfect_from_KR( KR_val );
       }
       //hash = f(m); 
-      BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
-            BOOST_LOG_TRIVIAL(debug) << "Correct, computed KR_val: "
-            			       << f.generate_KRHash_val_mod( m, k ) << ' ' << KR_val;
+      //      BOOST_LOG_TRIVIAL(debug) << "Correct hash, computed: " << f(m) << ' ' << hash;
+      //            BOOST_LOG_TRIVIAL(debug) << "Correct, computed KR_val: "
+      //            			       << f.generate_KRHash_val_mod( m, k ) << ' ' << KR_val;
 
       // hash must be in 0...n-1
       if (hash >= n) {
