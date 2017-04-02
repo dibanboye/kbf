@@ -171,7 +171,7 @@ vector<string> parseFasta(string const & path) {
       reads.push_back(seq->seq.s);
       cnt++;
     }
-    cerr << "(" << cnt << " reads) ";
+    cerr << "@@(" << cnt << " reads) " << endl;
     return reads;
 }
 
