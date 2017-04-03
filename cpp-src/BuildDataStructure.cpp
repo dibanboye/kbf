@@ -68,9 +68,9 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(info) << "Size(bytes):" << getCurrentRSS();
    BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << getCurrentRSS() / 1024.0;
 
-   BOOST_LOG_TRIVIAL(info) << "Size(bits):" << Graph.getBitSize();
-   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.getBitSize() / static_cast<double>( Graph.n );
-   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.getBitSize() / (8.0 * 1024);
+   BOOST_LOG_TRIVIAL(info) << "Estimated size(bits) (Mb):" << Graph.estimateBitSize()/(8.0 * 1024 * 1024);
+   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.bitSize() / (8.0 * 1024 * 1024);
+   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.bitSize() / static_cast<double>( Graph.n );
 
    BOOST_LOG_TRIVIAL(info) << "Membership check...";
    unordered_set<kmer_t>::iterator i; 

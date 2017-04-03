@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_set>
 #include <map>
+#include "BitArray.cpp"
 
 using namespace std;
 
@@ -119,7 +120,7 @@ class Forest {
      * reach its parent by
      * The ith node is the kmer that hashes to i
      */
-    vector<bool> data;
+    BitArray bitarray;
 
     // The number of nodes
     u_int64_t n;
@@ -128,7 +129,7 @@ class Forest {
     map<u_int64_t, kmer_t> roots;
 
     /**Constructor*/
-    Forest(u_int64_t n): data(4*n) {
+    Forest(u_int64_t n): bitarray(4*n) {
 
       this->n = n;
     }
@@ -141,11 +142,12 @@ class Forest {
 
        u_int64_t index = this->nodeIndex(i);
 
-       this->data[index] = false;
-       this->data[index + 1] = IN; 
+       this->bitarray.set(index, false);
+       this->bitarray.set(index + 1, IN); 
 
-       this->data[index + 2] = l.bits[0];
-       this->data[index + 3] = l.bits[1];
+       this->bitarray.set(index + 2, l.bits[0]);
+       this->bitarray.set(index + 3, l.bits[1]);
+
     }
 
     // Return index in data of the beginning of the ith node
@@ -160,17 +162,17 @@ class Forest {
 
        this->roots[i] = str;
 
-       this->data[nodeIndex(i)] = 1;
+       this->bitarray.set(nodeIndex(i), true);
     }
 
     // Returns whether the ith node is stored
     bool isStored(u_int64_t i) {
-       return this->data[nodeIndex(i)];
+       return this->bitarray.get(nodeIndex(i));
     }
 
     // Whether the ith node has IN
     bool parent_in_IN(u_int64_t i) {
-       return this->data[nodeIndex(i) + 1];
+       return this->bitarray.get(nodeIndex(i) + 1);
     }
 
     // Deduce the parent of the ith node's kmer given the ith node's
@@ -178,9 +180,9 @@ class Forest {
     kmer_t getNext(u_int64_t i, kmer_t& mer, unsigned k) {
 
       u_int64_t index = nodeIndex(i);
-      Letter l (this->data[index + 2], this->data[index + 3]);
+      Letter l (this->bitarray.get(index + 2), this->bitarray.get(index + 3));
 
-      if (this->data[index + 1]) {
+      if (this->bitarray.get(index + 1)) {
         // reach via IN
         return pushOnFront(mer, l, k);
       }
@@ -189,21 +191,9 @@ class Forest {
       }
     }
 
-    /**Print out a plain array*/
-    void print() {
-
-        int index = 0;
-
-        for (int i = 0; i < this->n; i++) {
-          for (int j = 0; j < 4; j++) {
-            cout << this->data[index];
-            index++;
-          }
-          cout << endl;
-        }
-
+    u_int64_t getBitSize() {
+        return this->bitarray.total_bit_size() + this->roots.size()*8*sizeof(kmer_t);
     }
-
 };
 
 /**
@@ -213,36 +203,33 @@ class Forest {
 class INorOUT {
 
   private:
-    vector<bool> data; // Holds entire matrix in one vector
+    BitArray bitarray;
     u_int64_t n; // number of rows
 
   public:
 
-    INorOUT(u_int64_t n) : data(4*n) {
+    INorOUT(u_int64_t n) : bitarray (4*n) {
       this->n = n;
     }
 
-    vector<bool>::reference operator()(u_int64_t row, unsigned col) {
+    // Set row, col value
+    void set(unsigned row, unsigned col, bool val) {
 
-        u_int64_t index = 4*row + col;
-
-        return data[index];
+        unsigned index = 4*row + col;
+        this->bitarray.set(index, val);
 
     }
 
-    void print() {
+    // Get row, col value
+    bool get(unsigned row, unsigned col) {
 
-        int index = 0;
+        unsigned index = 4*row + col;
+        return this->bitarray.get(index);
 
-        for (int i = 0; i < this->n; i++) {
-          for (int j = 0; j < 4; j++) {
-            cout << this->data[index];
-            index++;
-          }
-          cout << endl;
-        }
+    }
 
-
+    unsigned getBitSize() {
+        return this->bitarray.total_bit_size() + 8*sizeof(u_int64_t);
     }
 };
 
@@ -266,10 +253,24 @@ public:
   /**
    * The number of bits that our data should be using
    */
-  u_int64_t getBitSize() {
+  u_int64_t estimateBitSize() {
     u_int64_t res = 8 * n; //IN,OUT
     res += 4 * n + fo.roots.size() * 2*k; //not too accurate, adding forest bits
     res += f.bphf->totalBitSize();
+    return res;
+  }
+
+  u_int64_t bitSize() {
+
+    // IN and OUT
+    u_int64_t res = this->IN.getBitSize() + this->OUT.getBitSize();
+
+    // forest
+    res += this->fo.getBitSize();
+
+    // mphf
+    res += f.bphf->totalBitSize();
+
     return res;
   }
   
@@ -358,8 +359,8 @@ public:
         << hash_v;
     }
 
-    this->OUT(hash_u, last) = true;
-    this->IN(hash_v, first) = true;
+    this->OUT.set(hash_u, last, true);
+    this->IN.set(hash_v, first, true);
     
   }
 
@@ -396,13 +397,13 @@ public:
     u_int64_t hashV = f( v );
     unsigned outIndex = access_kmer( v, k, k - 1 );
     unsigned inIndex = access_kmer( u, k, 0 );
-    if ( OUT(hashU, outIndex) )
+    if ( OUT.get(hashU, outIndex) )
       return; // edge already exists
 
     //making it here means that edge is compatible and edge is not already in graph
     //So: begin logic for adding edge
-    OUT(hashU, outIndex) = 1;
-    IN(hashV, inIndex) = 1;
+    OUT.set(hashU, outIndex, true);
+    IN.set(hashV, inIndex, true);
 
     //Now, need to update the forest
     //TODO
@@ -508,12 +509,12 @@ public:
       }
       //confirm the edge from parent side
       if (in) {
-	if (!(OUT(hash, letter))) {
+	if (!(OUT.get(hash, letter))) {
 	   //BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	   return false;
 	}
       } else {
-	if (!(IN(hash, letter))) {
+	if (!(IN.get(hash, letter))) {
 	   //BOOST_LOG_TRIVIAL(debug) << "Returning false because IN,OUT verification failed" << endl;
 	  return false;
 	}
@@ -584,12 +585,12 @@ public:
       }
       //confirm the edge from parent side
       if (in) {
-	if (!(OUT(hash, letter))) {
+	if (!(OUT.get(hash, letter))) {
 
 	  return false;
 	}
       } else {
-	if (!(IN(hash, letter))) {
+	if (!(IN.get(hash, letter))) {
 
 	  return false;
 	}
@@ -738,7 +739,7 @@ public:
     //    BOOST_LOG_TRIVIAL(trace) << "c, f(c): " << get_kmer_str(c, k  ) << ' ' << fc;
     //    BOOST_LOG_TRIVIAL(trace) << "Size of IN,OUT: " << IN[ fc ].size() << ' ' << OUT[ fc ].size();
     for ( unsigned ii = 0; ii < 4; ++ii ) {
-      if ( IN(fc, ii) ) {
+      if ( IN.get(fc, ii) ) {
 	//have in-neighbor with letter
 	Letter letter ( ii );
 	//	BOOST_LOG_TRIVIAL(trace) << "letter: " << ii << ' ' << letter.getNum();
@@ -750,7 +751,7 @@ public:
 	
 	v_inorout.push_back( true ); //true=IN
       }
-      if ( OUT(fc, ii) ) {
+      if ( OUT.get(fc, ii) ) {
 	//have out-neighbor with letter
 	Letter letter ( ii );
 
@@ -795,18 +796,22 @@ public:
     cout << setw(5) << "T" << endl;
 
     unordered_set<kmer_t>::iterator i;
+
     for (i = kmers.begin(); i != kmers.end(); ++i) {
         cout << setw(10) << get_kmer_str(*i, this->k);
 
         u_int64_t hash = this->f(*i); 
-        cout << setw(5) << this->IN(hash, 0);
-        cout << setw(5) << this->IN(hash, 1);
-        cout << setw(5) << this->IN(hash, 2);
-        cout << setw(5) << this->IN(hash, 3);
+        cout << setw(5) << this->IN.get(hash, 0);
+        cout << setw(5) << this->IN.get(hash, 1);
+        cout << setw(5) << this->IN.get(hash, 2);
+        cout << setw(5) << this->IN.get(hash, 3);
         cout << endl;
     } 
 
     cout << endl;
+
+
+
     cout << setw(30) << "===== OUT =====" << endl << endl;
  
     cout << setw(10) << ""; 
@@ -819,13 +824,14 @@ public:
         cout << setw(10) << get_kmer_str(*i, this->k);
 
         u_int64_t hash = this->f(*i); 
-        cout << setw(5) << this->OUT(hash, 0);
-        cout << setw(5) << this->OUT(hash, 1);
-        cout << setw(5) << this->OUT(hash, 2);
-        cout << setw(5) << this->OUT(hash, 3);
+        cout << setw(5) << this->OUT.get(hash, 0);
+        cout << setw(5) << this->OUT.get(hash, 1);
+        cout << setw(5) << this->OUT.get(hash, 2);
+        cout << setw(5) << this->OUT.get(hash, 3);
         cout << endl;
     } 
 
+    cout << endl;
 
   }
 
@@ -839,12 +845,13 @@ public:
 
         u_int64_t index = this->fo.nodeIndex(i);
 
-        cout << setw(5) << this->fo.data[index];
-        cout << setw(5) << this->fo.data[index + 1];
-        cout << setw(5) << this->fo.data[index + 2];
-        cout << setw(5) << this->fo.data[index + 3];
+        cout << setw(5) << this->fo.bitarray.get(index);
+        cout << setw(5) << this->fo.bitarray.get(index + 1);
+        cout << setw(5) << this->fo.bitarray.get(index + 2);
+        cout << setw(5) << this->fo.bitarray.get(index + 3);
         cout << endl;
     } 
+
 
   }
 
