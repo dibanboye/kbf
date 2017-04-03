@@ -8,6 +8,8 @@
 #include <time.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
+
 #define BOOST_LOG_DYN_LINK 1
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
@@ -81,9 +83,11 @@ void read_from_bin(string filename, unordered_set<kmer_t> &out)
 
   ifstream ifile(filename.c_str(), ios::in | ios::binary);
   ifile.seekg(0, ifile.end);
-  unsigned nbytes = ifile.tellg();
+  size_t nbytes = ifile.tellg();
   ifile.seekg(0, ifile.beg);
 
+  BOOST_LOG_TRIVIAL(info) << "File size (Gb): " << nbytes / (1024.0*1024.0*1024.0);
+  
   vector<kmer_t> kmer_vec(nbytes / sizeof(kmer_t), 0);
 
   ifile.read(reinterpret_cast<char *>(kmer_vec.data()), nbytes);

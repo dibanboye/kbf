@@ -22,7 +22,6 @@ using namespace std;
  * Run like "./a.out kmers.fasta 8"
  */
 int main(int argc, char* argv[]) {
-
    // Set debug level
    boost::log::core::get()->set_filter(boost::log::trivial::severity
       >= boost::log::trivial::trace);
