@@ -120,6 +120,11 @@ class BitArray {
          }
 
       }
+
+      ~BitArray() {
+
+           delete[] this->ints;
+       }
 };
 
 
