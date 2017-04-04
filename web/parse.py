@@ -10,6 +10,7 @@ def parse_log(file_name):
     accuracy = []
     query = []
     num_of_query = []
+    kmer = []
     for c, lin in enumerate(data):
         if lin[0:3] == '###':
             method = lin.split(' ')
@@ -29,14 +30,19 @@ def parse_log(file_name):
             elif 'queries' in lin:
                 temp  = lin.split(' ')[-1].rstrip()
                 num_of_query.append(temp)
-
-
+            elif 'Getting' in lin:
+                getting_time = lin.split(' ')[-2].rstrip()
+        if 'Input finished,' in lin:
+            kmer.append(int(lin.split()[6]))
+            # print(lin.split())
     res = {
         'methods': methods,
         'populate': populate,
         'accuracy': accuracy,
         'query': query,
-        'num_of_query': num_of_query
+        'num_of_query': num_of_query,
+        'kmer': kmer,
+        'kmer_reading_time': getting_time
     }
-    # print (res)
+    print (res)
     return res

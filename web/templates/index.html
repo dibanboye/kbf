@@ -16,13 +16,14 @@
 	<div class="container" style="width: 50%;">
 		<div class="jumbotron">
 			<h1>Fully Dynamic de Bruijn Graph Running Demo</h1>
-			<p><p4>This demo run the examples and visualize the results. </p4></p>
+			<p><p4>This demo run the examples and compare results. </p4></p>
 		<form action="{{ url_for('index') }}" method=post class="add-entry custom">
 			<label for="K" style="margin-top: .3cm"> <h3>K value: </h3></label>
 			<select class="selectpicker form-control" id='K' name='K'>
 				<option>5</option>
-				<option>7</option>
 				<option>10</option>
+				<option>20</option>
+				<option>25</option>
 				<option>all</option>
 			</select>
 			<label for="# of queries" style="margin-top: .3cm"><h3># of queries: </h3></label>
@@ -40,7 +41,8 @@
 			</select>
 			
 			<p style="margin-top: 1cm">
-				<button type="submit" class="btn btn-lg btn-primary">Go &raquo;</button>
+				<button type="submit" name="submit" value="go" class="btn btn-lg btn-primary">Go &raquo;</button>
+				<button type="submit" name="submit" value="view" class="btn btn-lg btn-primary">View &raquo;</button>
 			</p>
 		</form>
 

@@ -18,7 +18,7 @@ def parse(dataset, K, query):
         d = 'yeast.fasta'
     elif dataset == 'ecoli':
         d = 'sra_data.fasta'
-    
+
     if query == '0.1M':
         q = '500000'
     elif query == '1M':
@@ -27,7 +27,7 @@ def parse(dataset, K, query):
         q = '10000000'
     
     if K == 'all':
-        k = [5, 7, 10]
+        k = [5, 10, 20, 25]
     else:
         k = int(K)
     
@@ -44,21 +44,23 @@ def index():
     if dataset == None or K == None or query == None:
         return render_template('index.html', start=0)
     else:    
- 
+        print ('###', request.form['submit'])
         dataset, K, query = parse(dataset, K, query)
 
         print (dataset)
         print (K)
         print (query)
         path = '/home/bioinf/project_zizhao_test/KBF/cpp-src/'
-        demo_name = 'log_demo_{}_{}_{}.txt'.format(dataset,K,query)
-
-        if os.path.isfile(demo_name):
-            os.remove(demo_name)
+        demo_name = 'log/log_demo_{}_{}_{}.txt'.format(dataset,K,query)
         
-        cmd = "{}main {}{} {} {} {} | tee {}".format(path, path, dataset, K, 'test_demo', query, demo_name)
-        print (cmd)
-        os.system(cmd)
+
+        if not os.path.isfile(demo_name) or request.form['submit'] == 'go':
+            cmd = "{}main data/{} {} {} {} | tee {}".format(path, dataset, K, 'test_demo', query, demo_name)
+            print (cmd)
+            os.system(cmd)
+        else:
+            print ('{} file exist!'.format(demo_name))
+
         if os.path.isfile(demo_name):
             res = parse_log(demo_name)
             return render_template('index.html', 

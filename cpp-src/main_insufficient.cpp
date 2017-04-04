@@ -78,7 +78,7 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, F
     auto start = std::chrono::system_clock::now();
     for (auto qk : test_kmers)
     {
-        bool state = fdbg.detect_membership(qk);
+        bool state = fdbg.inefficient_detect_membership(qk);
         states.push_back(state);
     }
     auto end = std::chrono::system_clock::now();
@@ -102,7 +102,7 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, F
         else
         {
             cout << "Kmer: " << test_kmers[i] << ' ' << get_kmer_str(test_kmers[i], k) << endl;
-            cout << "FDBG reports: " << fdbg.detect_membership(test_kmers[i]) << endl;
+            cout << "FDBG reports: " << fdbg.inefficient_detect_membership(test_kmers[i]) << endl;
             cout << "find reports: " << (true_kmers.find(test_kmers[i]) != true_kmers.end()) << endl;
         }
     }
