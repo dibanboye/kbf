@@ -39,37 +39,45 @@ int main(int argc, char* argv[]) {
    // fasta filename
    string filename = argv[1];
    int k = stoi(argv[2]);
+   FDBG Graph;
+   
+   //Have we constructed this dataset before on these parameters?
+   string dsfile = filename.substr( 0, filename.find_last_of( '.' ) ) + "fdbg" + to_string( k ) + ".bin";
 
    // get k-mers and edgemers from file
    unordered_set<kmer_t> kmers;
    unordered_set<kmer_t> edgemers;
-
    auto start = std::chrono::system_clock::now();
    handle_mers( filename, k, kmers, edgemers );
    auto end = std::chrono::system_clock::now();
    std::chrono::duration<double> elapsed_seconds = end-start;
-      
-   BOOST_LOG_TRIVIAL(info) << "Getting " << kmers.size() + edgemers.size() << " mers took " << elapsed_seconds.count() << " s";
-
-   // print out the kmers 
-   //   unordered_set<kmer_t>::iterator it1; 
-   //   for (it1 = kmers.begin(); it1 != kmers.end(); ++it1) {
-   //      BOOST_LOG_TRIVIAL(debug) << get_kmer_str(*it1, k);
-   //   }
-
-   BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
-   start = std::chrono::system_clock::now();
-   FDBG Graph( kmers, edgemers, kmers.size(), k, false );
-   end = std::chrono::system_clock::now();
-   elapsed_seconds = end-start;
    
-   BOOST_LOG_TRIVIAL(info) << "Data structure built in " << elapsed_seconds.count() << " s";
-   BOOST_LOG_TRIVIAL(info) << "Size(bytes):" << getCurrentRSS();
-   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << getCurrentRSS() / 1024.0;
+   if (file_exists( dsfile )) {
+     //Yes, so avoid reconstructing
+     BOOST_LOG_TRIVIAL(info) << "Loading from " << dsfile;
+     ifstream ifile_ds( dsfile.c_str(), ios::in | ios::binary );
+     Graph.load( ifile_ds );
+     ifile_ds.close();
+   } else {
+   
+     BOOST_LOG_TRIVIAL(info) << "Getting " << kmers.size() + edgemers.size() << " mers took " << elapsed_seconds.count() << " s";
 
-   BOOST_LOG_TRIVIAL(info) << "Estimated size(bits) (Mb):" << Graph.estimateBitSize()/(8.0 * 1024 * 1024);
-   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.bitSize() / (8.0 * 1024 * 1024);
-   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.bitSize() / static_cast<double>( Graph.n );
+     BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
+     start = std::chrono::system_clock::now();
+     Graph.build( kmers, edgemers, kmers.size(), k);
+     end = std::chrono::system_clock::now();
+     elapsed_seconds = end-start;
+
+     BOOST_LOG_TRIVIAL(info) << "Data structure built in " << elapsed_seconds.count() << " s";
+     BOOST_LOG_TRIVIAL(info) << "Writing data structure to file " << dsfile;
+     ofstream ofile( dsfile.c_str(), ios::out | ios::binary );
+     Graph.save( ofile );
+     ofile.close();
+   }
+
+   //   BOOST_LOG_TRIVIAL(info) << "Estimated size(bits) (Mb):" << Graph.estimateBitSize()/(8.0 * 1024 * 1024);
+   //   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.bitSize() / (8.0 * 1024 * 1024);
+   //   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.bitSize() / static_cast<double>( Graph.n );
 
    BOOST_LOG_TRIVIAL(info) << "Membership check...";
    unordered_set<kmer_t>::iterator i; 

@@ -22,17 +22,25 @@ class BitArray {
       // Create a bit array of n bits
       BitArray(unsigned num_bits)  {
 
-         // size of an unsigned is given in bytes
-         this->int_size = 8*sizeof(unsigned);
-
-         this->num_ints = ceil((num_bits)/((double) this->int_size));
-
-         // create an array of that number of ints
-         this->ints = new unsigned [num_ints];
-
-         // Make sure all ints are 0
-         this->clearInts();
+	allocate( num_bits );
       }
+
+  BitArray() {
+    //default constructor
+  }
+
+  void allocate( unsigned num_bits ) {
+    // size of an unsigned is given in bytes
+    this->int_size = 8*sizeof(unsigned);
+
+    this->num_ints = ceil((num_bits)/((double) this->int_size));
+
+    // create an array of that number of ints
+    this->ints = new unsigned [num_ints];
+
+    // Make sure all ints are 0
+    this->clearInts();
+  }
 
       void clearInts() {
 
@@ -121,10 +129,36 @@ class BitArray {
 
       }
 
-      ~BitArray() {
+  /* writes BitArray to a binary file stream */
+  void save( ostream& of ) {
+    of.write( (char *) (&num_ints), sizeof( unsigned ) );
+    of.write( (char *) (&int_size), sizeof( unsigned ) );
 
-           delete[] this->ints;
-       }
+    unsigned* ptr = ints;
+    for (unsigned i = 0; i < num_ints; ++i) {
+      of.write( (char *)(ptr++), sizeof(unsigned) );
+    }
+  }
+
+  void load( istream& of ) {
+    of.read( (char *) (&num_ints), sizeof( unsigned ) );
+    of.read( (char *) (&int_size), sizeof( unsigned ) );
+    //    cerr << "Bitarray int_size " << int_size << endl;
+    //    cerr << "Bitarray num_ints " << num_ints << endl;
+    ints = new unsigned [ num_ints ];
+    unsigned* ptr = ints;
+    for (unsigned i = 0; i < num_ints; ++i) {
+      of.read( ((char*) (ptr++)),
+	       sizeof (unsigned) );
+    }
+    
+  }
+  
+
+  ~BitArray() {
+
+    delete[] this->ints;
+  }
 };
 
 

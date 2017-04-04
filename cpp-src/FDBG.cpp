@@ -134,6 +134,16 @@ class Forest {
       this->n = n;
     }
 
+      /**Constructor*/
+  Forest() {
+    //default constructor
+  }
+
+  void allocate(u_int64_t n) {
+    this->n = n;
+    bitarray.allocate( 4*n );
+  }
+  
     /**
      * Set value of the ith node
      * Not stored
@@ -194,6 +204,36 @@ class Forest {
     u_int64_t getBitSize() {
         return this->bitarray.total_bit_size() + this->roots.size()*8*sizeof(kmer_t);
     }
+
+  void save( ostream& of ) {
+    of.write ( (char*) &n, sizeof( u_int64_t ) );
+    unsigned number_stored = roots.size();
+    of.write ( (char*) &number_stored, sizeof( unsigned ) );
+    for (auto i = roots.begin(); i != roots.end(); ++i) {
+      u_int64_t hash = i -> first;
+      kmer_t label = i -> second;
+      of.write ( (char*) &hash, sizeof( u_int64_t ) );
+      of.write ( (char*) &label, sizeof( kmer_t ) );
+    }
+    bitarray.save( of );
+  }
+
+  void load( istream& of ) {
+    of.read ( (char*) &n, sizeof( u_int64_t ) );
+    unsigned number_stored;
+    of.read ( (char*) &number_stored, sizeof( unsigned ) );
+    roots.clear();
+    for (unsigned i = 0; i < number_stored; ++i) {
+      u_int64_t hash;
+      kmer_t label;
+      of.read( (char*) &hash, sizeof( u_int64_t ) );
+      of.read( (char*) &label, sizeof( kmer_t ) );
+      roots[ hash ] = label;
+    }
+    bitarray.load( of );
+  }
+
+  
 };
 
 /**
@@ -208,10 +248,19 @@ class INorOUT {
 
   public:
 
-    INorOUT(u_int64_t n) : bitarray (4*n) {
-      this->n = n;
-    }
+  INorOUT(u_int64_t n) : bitarray (4*n) {
+    this->n = n;
+  }
 
+  INorOUT()  {
+    //default constructor
+  }
+
+  void  allocate(u_int64_t n) {
+    this->n = n;
+    bitarray.allocate( 4*n );
+  }
+  
     // Set row, col value
     void set(unsigned row, unsigned col, bool val) {
 
@@ -231,6 +280,17 @@ class INorOUT {
     unsigned getBitSize() {
         return this->bitarray.total_bit_size() + 8*sizeof(u_int64_t);
     }
+
+  void save( ostream& of ) {
+    of.write ( (char*) &n, sizeof( u_int64_t ) );
+    bitarray.save( of );
+  }
+
+  void load( istream& of ) {
+    of.read ( (char*) &n, sizeof( u_int64_t ) );
+    //    cerr << "INorOUT n:" << n << endl;
+    bitarray.load( of );
+  }
 };
 
 
@@ -250,6 +310,47 @@ public:
   Forest fo; // the forest NEW
   unsigned alpha;   //each tree in forest is guaranteed to be of height alpha to 3alpha
 
+  void save( ostream& of ) {
+    BOOST_LOG_TRIVIAL(debug) << "Saving small variables to file...";
+    of.write ( (char*) &n, sizeof( u_int64_t ) );
+    of.write ( (char*) &sigma, sizeof( unsigned ) );
+    of.write ( (char*) &k, sizeof( unsigned ) );
+    of.write ( (char*) &alpha, sizeof( unsigned ) );
+
+    BOOST_LOG_TRIVIAL(debug) << "Saving IN to file...";
+    IN.save( of );
+    BOOST_LOG_TRIVIAL(debug) << "Saving OUT to file...";
+    OUT.save( of );
+    BOOST_LOG_TRIVIAL(debug) << "Saving Forest to file...";
+    fo.save( of );
+    BOOST_LOG_TRIVIAL(debug) << "Saving hash to file...";
+    f.save( of );
+  }
+
+  void load( istream& of ) {
+    BOOST_LOG_TRIVIAL(debug) << "Loading variables from file...";
+    
+    of.read ( (char*) &n, sizeof( u_int64_t ) );
+    of.read ( (char*) &sigma, sizeof( unsigned ) );
+    of.read ( (char*) &k, sizeof( unsigned ) );
+    of.read ( (char*) &alpha, sizeof( unsigned ) );
+
+    //    BOOST_LOG_TRIVIAL(debug) << n << ' ' << sigma << ' ' << k << ' ' << alpha;
+    
+    BOOST_LOG_TRIVIAL(debug) << "Loading IN from file...";
+    IN.load( of );
+    BOOST_LOG_TRIVIAL(debug) << "Loading OUT from file...";
+    OUT.load( of );
+    BOOST_LOG_TRIVIAL(debug) << "Loading fo from file...";
+    fo.load( of );
+
+    //    printForest();
+      
+    BOOST_LOG_TRIVIAL(debug) << "Loading hash from file...";
+    f.load( of );
+  }
+
+  
   /**
    * The number of bits that our data should be using
    */
@@ -273,20 +374,25 @@ public:
 
     return res;
   }
-  
-  FDBG( unordered_set<kmer_t>& kmers,
-        unordered_set<kmer_t>& edgemers,
-	u_int64_t n, //number of kmers
-	unsigned k, //mer size
-	bool b_verify = false, //if true, print summary
-	ostream& os = cout
-	) : IN (n), OUT (n), fo (n)
-  {
+
+  FDBG() {
+    //default constructor
+  }
+
+  void build(
+	     unordered_set<kmer_t>& kmers,
+	     unordered_set<kmer_t>& edgemers,
+	     u_int64_t n, //number of kmers
+	     unsigned k ) { //mer size 
     sigma = 4;
     
     this->n = n;
     this->k = k;
-   
+
+    IN.allocate( n );
+    OUT.allocate( n );
+    fo.allocate( n );
+    
     //construct hash function f
     f.construct_hash_function( kmers, n, k );
 
@@ -310,6 +416,18 @@ public:
 
     //printHashFunction(kmers);
     //printForest();
+  }
+
+  
+  FDBG( unordered_set<kmer_t>& kmers,
+        unordered_set<kmer_t>& edgemers,
+	u_int64_t n, //number of kmers
+	unsigned k, //mer size
+	bool b_verify = false, //if true, print summary
+	ostream& os = cout
+	) : IN (n), OUT (n), fo (n)
+  {
+    build( kmers, edgemers, n, k );
   }
 
   /**
