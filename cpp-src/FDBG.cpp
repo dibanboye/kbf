@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_set>
 #include <map>
+#include <chrono>
 #include "BitArray.cpp"
 
 using namespace std;
@@ -277,7 +278,7 @@ class INorOUT {
 
     }
 
-    unsigned getBitSize() {
+  size_t getBitSize() {
         return this->bitarray.total_bit_size() + 8*sizeof(u_int64_t);
     }
 
@@ -309,6 +310,7 @@ public:
   generate_hash f; //hash function that takes each kmer to 1..n
   Forest fo; // the forest NEW
   unsigned alpha;   //each tree in forest is guaranteed to be of height alpha to 3alpha
+  double construction_time;
 
   void save( ostream& of ) {
     BOOST_LOG_TRIVIAL(debug) << "Saving small variables to file...";
@@ -316,6 +318,7 @@ public:
     of.write ( (char*) &sigma, sizeof( unsigned ) );
     of.write ( (char*) &k, sizeof( unsigned ) );
     of.write ( (char*) &alpha, sizeof( unsigned ) );
+    of.write ( (char*) &construction_time, sizeof( double ) );
 
     BOOST_LOG_TRIVIAL(debug) << "Saving IN to file...";
     IN.save( of );
@@ -334,7 +337,7 @@ public:
     of.read ( (char*) &sigma, sizeof( unsigned ) );
     of.read ( (char*) &k, sizeof( unsigned ) );
     of.read ( (char*) &alpha, sizeof( unsigned ) );
-
+    of.read ( (char*) &construction_time, sizeof( double ) );
     //    BOOST_LOG_TRIVIAL(debug) << n << ' ' << sigma << ' ' << k << ' ' << alpha;
     
     BOOST_LOG_TRIVIAL(debug) << "Loading IN from file...";
@@ -361,7 +364,7 @@ public:
     return res;
   }
 
-  u_int64_t bitSize() {
+  size_t bitSize() {
 
     // IN and OUT
     u_int64_t res = this->IN.getBitSize() + this->OUT.getBitSize();
@@ -383,7 +386,8 @@ public:
 	     unordered_set<kmer_t>& kmers,
 	     unordered_set<kmer_t>& edgemers,
 	     u_int64_t n, //number of kmers
-	     unsigned k ) { //mer size 
+	     unsigned k ) { //mer size
+    auto start = std::chrono::system_clock::now();
     sigma = 4;
     
     this->n = n;
@@ -416,6 +420,9 @@ public:
 
     //printHashFunction(kmers);
     //printForest();
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end-start;
+    construction_time = elapsed_seconds.count();
   }
 
   

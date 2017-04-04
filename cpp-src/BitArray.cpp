@@ -20,7 +20,7 @@ class BitArray {
    public:
 
       // Create a bit array of n bits
-      BitArray(unsigned num_bits)  {
+      BitArray(size_t num_bits)  {
 
 	allocate( num_bits );
       }
@@ -29,7 +29,7 @@ class BitArray {
     //default constructor
   }
 
-  void allocate( unsigned num_bits ) {
+  void allocate( size_t num_bits ) {
     // size of an unsigned is given in bytes
     this->int_size = 8*sizeof(unsigned);
 
@@ -44,28 +44,28 @@ class BitArray {
 
       void clearInts() {
 
-         for (int i = 0; i < this->num_ints; i++) {
+         for (unsigned i = 0; i < this->num_ints; i++) {
             this->ints[i] = 0;
          }
 
       }
 
       // Get which int a certain bit is in
-      unsigned int_num(unsigned bit_num) {
+      unsigned int_num(size_t bit_num) {
 
          return bit_num/this->int_size;
 
       }
 
       // Get what index of its int a certain bit is in
-      unsigned int_index(unsigned i) {
+      unsigned int_index(size_t i) {
 
          return i % this->int_size;
 
       }
 
       // get the ith bit
-      bool get(unsigned i) {
+      bool get(size_t i) {
 
          // What int this bit_num is in
          unsigned bit_int = this->ints[this->int_num(i)];
@@ -81,7 +81,7 @@ class BitArray {
       }
 
       // set the ith bit to v
-      void set(unsigned i, bool v) {
+      void set(size_t i, bool v) {
  
          // which int in our int array
          unsigned int_num = this->int_num(i);
@@ -106,9 +106,9 @@ class BitArray {
       }
 
       // Get the amount of bits this is taking up
-      unsigned total_bit_size() {
+      size_t total_bit_size() {
 
-          return this->num_ints*this->int_size;
+	return static_cast<size_t>(this->num_ints)*this->int_size;
 
       }
 
