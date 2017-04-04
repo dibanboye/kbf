@@ -64,6 +64,7 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, B
     }
 
     cout << "@@Accuracy: " << accuracy / states.size() << endl;
+    cout << "Writing log file to " << out_fname << endl;
 
     f_out.close();
 }
@@ -107,6 +108,7 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, F
     }
     cout << "@@Number of queries: " << states.size() << endl;
     cout << "@@Accuracy: " << accuracy / states.size() << endl;
+    cout << "Writing log file to " << out_fname << endl;
     f_out.close();
 }
 
@@ -182,7 +184,7 @@ int main(int argc, char *argv[])
     string input_fasta = argv[1];
     int K = stoi(argv[2]);
     unsigned long query_set_size = 1000000;
-    string prefix = "test";
+    string prefix = "log/test";
     bool TP = false;
     if (argc > 3)
     {
@@ -200,6 +202,7 @@ int main(int argc, char *argv[])
         else
             assert(TP_string.compare("false") == 0);
     }
+    prefix = prefix+"_"+std::to_string(K)+"_"+input_fasta+"_"+std::to_string(query_set_size);
     // parse input reads -- will build a kmer set from that
 
     unordered_set<kmer_t> read_kmers;
@@ -210,7 +213,7 @@ int main(int argc, char *argv[])
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
 
-    cout << "Getting " << read_kmers.size() + edge_kmers.size() << " mers took " << elapsed_seconds.count() << " s" << endl;
+    cout << "@@Getting " << read_kmers.size() + edge_kmers.size() << " mers took " << elapsed_seconds.count() << " s" << endl;
     vector<kmer_t> query_kmers = sample_kmers(read_kmers, query_set_size, K, TP);
 
     {
