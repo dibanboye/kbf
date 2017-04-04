@@ -1,0 +1,38 @@
+[2017-04-02 00:34:03.148455] [0x000007faaf9d4574] [info]    Reading mers from binary file test10.bin ...
+[2017-04-02 00:34:03.148640] [0x000007faaf9d4574] [info]    Input finished, 356 mers read.
+[2017-04-02 00:34:03.148656] [0x000007faaf9d4574] [info]    Reading mers from binary file test11.bin ...
+[2017-04-02 00:34:03.148705] [0x000007faaf9d4574] [info]    Input finished, 357 mers read.
+Getting 713 mers took 0.000394008 s
+########## Fully Dynamic de Bruijn Graph ##########
+[2017-04-02 00:34:03.421725] [0x000007faaf9d4574] [info]    Constructing the hash function ...
+[2017-04-02 00:34:03.421748] [0x000007faaf9d4574] [info]    Constructing Karp-Rabin hash function ...
+[2017-04-02 00:34:03.421755] [0x000007faaf9d4574] [info]    Theoretical prime lower bound: 1267360
+[2017-04-02 00:34:03.421760] [0x000007faaf9d4574] [info]    Trying prime: 25349
+[2017-04-02 00:34:03.422563] [0x000007faaf9d4574] [info]    Base 24992 with prime 25349 is injective.
+[2017-04-02 00:34:03.422576] [0x000007faaf9d4574] [info]    Building minimal perfect hash function ...
+Bitarray            7488  bits (100.00 %)   (array + ranks )
+final hash             0  bits (0.00 %) (nb in final hash 0)
+[2017-04-02 00:34:03.428979] [0x000007faaf9d4574] [info]    Minimal perfect hash function created with 21.0337 bits per element.
+[2017-04-02 00:34:03.428997] [0x000007faaf9d4574] [info]    Initializing IN and OUT.
+[2017-04-02 00:34:03.429000] [0x000007faaf9d4574] [info]    Adding edges to IN and OUT ...
+[2017-04-02 00:34:03.429724] [0x000007faaf9d4574] [info]    Beginning the forest construction, with alpha = 20
+@@Build and populate FDBG: 0.00943314
+@@query time: 6.09219
+@@Number of queries: 1000000
+@@Accuracy: 1
+########## CLASSIC BLOOM FILTER ##########
+@@Build and populate Classic Bloom filter: 0.000459748
+@@query time: 0.161019
+@@Accuracy: 0.966241
+########## KBF1 ##########
+@@Build and populate KBF1: 0.000285093
+@@query time: 0.203479
+@@Accuracy: 0.986899
+########## KBF2 ##########
+[2017-04-02 00:34:17.538153] [0x000007faaf9d4574] [info]    Parse fasta, get kmers, potential edge kmers for KBF2: 0.000216146 s
+
+[2017-04-02 00:34:17.538168] [0x000007faaf9d4574] [info]    Potential edge kmers: 2
+
+@@Build and populate KBF2: 0.000208298
+@@query time: 0.189023
+@@Accuracy: 0.99851

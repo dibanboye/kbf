@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>CIS6930 Bioinformatic Algorithms Project Demo</title>
+	<!-- import plugin script -->
+	<script src='static/ChartNew.min.js'></script>
+	<link href="static/bootstrap.min.css" rel="stylesheet">
+	<link href="static/bootstrap-theme.min.css" rel="stylesheet">
+	<link href="static/theme.css" rel="stylesheet">
+	<script src='static/patternomaly.js'></script>
+</head>
+
+<body>
+	<div class="container" style="width: 50%;">
+		<div class="jumbotron">
+			<h1>Fully Dynamic de Bruijn Graph Running Demo</h1>
+			<p><p4>This demo run the examples and visualize the results. </p4></p>
+		<form action="{{ url_for('index') }}" method=post class="add-entry custom">
+			<label for="K" style="margin-top: .3cm"> <h3>K value: </h3></label>
+			<select class="selectpicker form-control" id='K' name='K'>
+				<option>5</option>
+				<option>7</option>
+				<option>10</option>
+				<option>all</option>
+			</select>
+			<label for="# of queries" style="margin-top: .3cm"><h3># of queries: </h3></label>
+			<select class="selectpicker form-control" id='query' name='query'>
+				<option selected="selected">0.1M</option>
+				<option>1M</option>
+				<option>10M</option>
+			</select>
+			
+			<label for="dataset" style="margin-top: .3cm"><h3>Dataset: </h3></label>
+			<select class="selectpicker form-control" id='dataset' name='dataset'>
+				<option>test</option>
+				<option>yeast</option>
+				<option>ecoli</option>
+			</select>
+			
+			<p style="margin-top: 1cm">
+				<button type="submit" class="btn btn-lg btn-primary">Go &raquo;</button>
+			</p>
+		</form>
+
+		<!--</form>-->
+
+		
+	{%if start == 1%}
+	</div><!-- /container -->
+	<div class="container" style="width: 100%;">
+		<!-- Example row of columns -->
+		
+		<div align='center'>
+				<h5 align='center'>Population time</h5>
+				<canvas id="chart" width="600" height="300"></canvas>
+		</div>
+		<hr>
+		<div align='center'>
+			<h5 align='center'>Query time</h5>
+			<canvas id="chart2" width="600" height="300"></canvas>
+		</div>
+		<hr>
+		<div align='center'>
+			<h5 align='center'>Accuracy</h5>
+			<canvas id="chart3" width="600" height="300"></canvas>
+		</div>
+
+	</div><!-- /container -->
+	{% endif %}
+		<script>
+			var randomColorGenerator = function () {
+				return '#' + (Math.random().toString(16) + '0000000').slice(2, 8);
+			};
+
+
+			var barData = {
+				datasets: [
+					{
+						data: [{% for item in populate %} "{{item}}", {% endfor %}],
+						label: 'Population time',
+						backgroundColor: [
+							// 'rgba(255, 99, 132, 0.2)',
+							'rgba(54, 162, 235, 0.5)',
+							'rgba(255, 206, 86, 0.5)',
+							'rgba(75, 192, 192, 0.5)',
+							'rgba(153, 102, 255, 0.5)',
+							'rgba(255, 159, 64, 0.5)'
+						],
+						// borderColor: [
+						// 	'rgba(0,0,0,1)',
+							
+						// ],
+
+					}
+					
+					
+				],
+				labels: [{% for item in range(3) %} "{{item}}", {% endfor %}]
+			};			
+			var mychart = document.getElementById("chart").getContext("2d");
+
+			var options = {
+					title: {
+						display: false,
+						text: 'Population time',
+						fontSize: 30
+					},
+					legend: {
+						display: false,
+						labels: {
+							display: true
+						}
+					},
+					scales: {
+						xAxes: [{
+							ticks: {
+								fontSize: 20
+							}
+						}],
+						yAxes: [{
+							ticks: {
+								fontSize: 20
+							}
+						}]
+					},
+					responsive: false,
+			
+				}
+			new Chart(mychart, {
+				type: 'bar',
+				data: barData,
+				options: options
+			})
+
+			var barData2 = {
+				datasets: [{
+					data: [{% for item in query %} "{{item}}", {% endfor %}],
+					label: 'Query time',
+					backgroundColor: [
+							// 'rgba(255, 99, 132, 0.2)',
+							'rgba(54, 162, 235, 0.5)',
+							'rgba(255, 206, 86, 0.5)',
+							'rgba(75, 192, 192, 0.5)',
+							'rgba(153, 102, 255, 0.5)',
+							'rgba(255, 159, 64, 0.5)'
+						],
+					
+				}],
+				labels: [{% for item in range(3) %} "{{item}}", {% endfor %}]
+			};		
+			
+ 
+			// get bar chart canvas
+			var mychart2 = document.getElementById("chart2").getContext("2d");
+
+			new Chart(mychart2, {
+				type: 'bar',
+				data: barData2,
+				options: options
+			})
+			var barData3 = {
+				datasets: [{
+					data: [{% for item in accuracy %} "{{item}}", {% endfor %}],
+					label: 'Accuracy',
+					backgroundColor: [
+							// 'rgba(255, 99, 132, 0.2)',
+							'rgba(54, 162, 235, 0.5)',
+							'rgba(255, 206, 86, 0.5)',
+							'rgba(75, 192, 192, 0.5)',
+							'rgba(153, 102, 255, 0.5)',
+							'rgba(255, 159, 64, 0.5)'
+						],
+					
+				}],
+				labels: [{% for item in range(3) %} "{{item}}", {% endfor %}]
+			};		
+
+			// get bar chart canvas
+			var mychart3 = document.getElementById("chart3").getContext("2d");
+
+			new Chart(mychart3, {
+					type: 'bar',
+					data: barData3,
+					options: options
+				})
+		</script>
+	
+</body>
+
+</html>
