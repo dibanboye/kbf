@@ -33,14 +33,6 @@ class generate_hash {
    u_int64_t n_kmer; //the number of k-mers
    unsigned k_kmer; //the lengths of the k-mers (max 32)
 
-   vector<string> kmer_data; // pointer to kmer_data TODO: should read from file
-
-   std::unordered_set<u_int64_t> KRHash; //image of k-mers through Karp-Rabin hash function
-   //std::vector<u_int64_t> KRHash_vec; //vector form
-
-   //the image of our k-mers under our Karp-Rabin hash function
-   //vector<u_int64_t> KR_hash_val;
-
    /* 
     * Will store the precomputed powers of 
     * Needs to be a vector will have k distinct powers
@@ -50,6 +42,10 @@ class generate_hash {
    vector< largeUnsigned > powersOfR;
    vector< u_int64_t > powersOfRModP;
 
+   //image of k-mers through Karp-Rabin hash function
+   //discarded after use
+   std::unordered_set<u_int64_t> KRHash; 
+   
    boophf_t* bphf; //MPHF we will generate
 
    u_int64_t r; // the base for our Karp-Rabin Hash function
@@ -58,6 +54,35 @@ class generate_hash {
 
    const static short sigma = 4; // alphabet size
 
+   void save( ostream& of ) {
+     of.write ( (char*) &n_kmer, sizeof( u_int64_t ) );
+     of.write ( (char*) &k_kmer, sizeof( unsigned ) );
+     of.write ( (char*) &r, sizeof( u_int64_t ) );
+     of.write ( (char*) &rinv, sizeof( u_int64_t ) );
+     of.write ( (char*) &Prime, sizeof( u_int64_t ) );
+
+     cerr << "writing BBHash..." << endl;
+     bphf->save( of );
+   }
+
+
+   void load( istream& of ) {
+     of.read ( (char*) &n_kmer, sizeof( u_int64_t ) );
+     of.read ( (char*) &k_kmer, sizeof( unsigned ) );
+     of.read ( (char*) &r, sizeof( u_int64_t ) );
+     of.read ( (char*) &rinv, sizeof( u_int64_t ) );
+     of.read ( (char*) &Prime, sizeof( u_int64_t ) );
+     //     cerr << "n k r Prime " << n_kmer << ' ' << k_kmer << ' ' << r << ' ' << Prime << '\n';
+     
+     //     this->bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, KRHash_vec, 4, 2.0, true, false);
+     bphf = new boomphf::mphf< u_int64_t, hasher_t >();
+     //     cerr << "loading BBHash..." << endl;
+     
+     bphf->load( of );
+     //     cerr << "done\n";
+     precomputePowers_mod();
+   }
+   
    /**
     * Create hash function out of n k-mers of length k
     */
@@ -70,7 +95,12 @@ class generate_hash {
 
    generate_hash() {
       //default constructor
-      std::srand(std::time(NULL));
+      std::srand( 0 );
+   }
+
+   generate_hash( istream& of ) {
+     std::srand( 0 );
+     load( of );
    }
 
    void construct_hash_function( unordered_set< kmer_t >& kmers , u_int64_t n , unsigned k ) {
@@ -214,16 +244,16 @@ class generate_hash {
 	       //	       }
 	       
 	       //BOOST_LOG_TRIVIAL(trace) << "hash of kmer: " << v;
-	       if (this->KRHash.find(v1) == this->KRHash.end())
+	       if (KRHash.find(v1) == KRHash.end())
 		  {
 		     // this is a new value
-		     this->KRHash.insert(v1);
+		     KRHash.insert(v1);
 		  }
 	       else // not injective
 		  {
 			 BOOST_LOG_TRIVIAL(trace) << "Base " <<this->r << " with prime "
 						  << Prime << " failed injectivity.";
-			 this->KRHash.clear(); // clear it out and start over
+			 KRHash.clear(); // clear it out and start over
 			 f_injective = false;
 			 break;
 		      }
@@ -503,14 +533,16 @@ class generate_hash {
 
       BOOST_LOG_TRIVIAL(info) << "Building minimal perfect hash function ...";
 
-      std::vector<u_int64_t> KRHash_vec = std::vector<u_int64_t>(this->KRHash.begin(),
-								 this->KRHash.end());
+      std::vector<u_int64_t> KRHash_vec (KRHash.begin(),
+					 KRHash.end());
 
       // MPHF for our KRHash function values
       this->bphf = new boomphf::mphf<u_int64_t, hasher_t>(n_kmer, KRHash_vec, 4, 2.0, true, false);
 
       BOOST_LOG_TRIVIAL(info) << "Minimal perfect hash function created with "
 			      << (float) (bphf->totalBitSize())/n_kmer << " bits per element.";
+
+      //      KRHash.clear();
    }
 
 

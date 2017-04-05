@@ -773,10 +773,11 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 		{
 			os.write(reinterpret_cast<char const*>(&_size), sizeof(_size));
 			os.write(reinterpret_cast<char const*>(&_nchar), sizeof(_nchar));
-			os.write(reinterpret_cast<char const*>(_bitArray), (std::streamsize)(sizeof(uint64_t) * _nchar));
+			os.write(reinterpret_cast<char const*>(_bitArray), (sizeof(uint64_t) * _nchar));
 			size_t sizer = _ranks.size();
 			os.write(reinterpret_cast<char const*>(&sizer),  sizeof(size_t));
-			os.write(reinterpret_cast<char const*>(_ranks.data()), (std::streamsize)(sizeof(_ranks[0]) * _ranks.size()));
+			os.write(reinterpret_cast<char const*>(_ranks.data()), (sizeof(_ranks[0]) * _ranks.size()));
+			//			std::cerr << "BBHash write complete" << std::endl;
 		}
 
 		void load(std::istream& is)
@@ -1168,18 +1169,23 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 		}
 
 		
-		void save(std::ostream& os) const
+		void save(std::ostream& os) 
 		{
-
+			_nb_levels = _levels.size();
 			os.write(reinterpret_cast<char const*>(&_gamma), sizeof(_gamma));
 			os.write(reinterpret_cast<char const*>(&_nb_levels), sizeof(_nb_levels));
 			os.write(reinterpret_cast<char const*>(&_lastbitsetrank), sizeof(_lastbitsetrank));
 			os.write(reinterpret_cast<char const*>(&_nelem), sizeof(_nelem));
+
+			//			std::cerr << "writing levels...\n" ;
+			//			std::cerr << _nb_levels << std::endl;
 			 for(int ii=0; ii<_nb_levels; ii++)
 			 {
 			  	_levels[ii].bitset.save(os);
 			 }
 
+			 //			 std::cerr << "Levels written." ;
+			 //			 std::cerr << "Saving final hash" ;
 			//save final hash
 			size_t final_hash_size = _final_hash.size();
 
@@ -1187,8 +1193,11 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 
 
 			// typename std::unordered_map<elem_t,uint64_t,Hasher_t>::iterator
+			//			std::cerr << "\nfinal_hash.size " << _final_hash.size() << '\n';
 			for (auto it = _final_hash.begin(); it != _final_hash.end(); ++it )
 			{
+			  //			  std::cerr << "\nSomehow in here\n ";
+			  
 				os.write(reinterpret_cast<char const*>(&(it->first)), sizeof(elem_t));
 				os.write(reinterpret_cast<char const*>(&(it->second)), sizeof(uint64_t));
 			}
@@ -1204,7 +1213,7 @@ we need this 2-functors scheme because HashFunctors won't work with unordered_ma
 			is.read(reinterpret_cast<char*>(&_nelem), sizeof(_nelem));
 			
 			_levels.resize(_nb_levels);
-			
+			//			std::cerr << _nb_levels << std::endl;
 
 			for(int ii=0; ii<_nb_levels; ii++)
 			{
