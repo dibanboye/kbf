@@ -15,7 +15,6 @@
 #include "formatutil.cpp"
 #include "KBFUtil.hpp"
 
-
 using namespace std;
 
 /**
@@ -85,7 +84,28 @@ int main(int argc, char* argv[]) {
 
 
    BOOST_LOG_TRIVIAL(info) << "Membership tests passed!";
+
+
+   /** TREE HEIGHT TESTS */
+
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests ...";
+
+   // Compute data about trees in the forest
+   unsigned num_trees;
+   double avg_height; // average height of trees
+   unsigned num_above; // number above the supposed max
+   unsigned num_below; // number below the supposed min
    
+   Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+   BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";
+   BOOST_LOG_TRIVIAL(debug) << "The average height of a tree is " << avg_height;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees above the max height is  "
+      << num_above;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
+      << num_below;
+
+ 
    return 0;
 }
 
