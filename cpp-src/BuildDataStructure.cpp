@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
      ifile_ds.close();
      BOOST_LOG_TRIVIAL(info) << "Data structure built in " << Graph.construction_time << " s";
    } else {
-    
+     cout << "PAY ATTENTION!! IT IS SLOW!!" << endl;
      BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
      Graph.build( kmers, edgemers, kmers.size(), k);
 

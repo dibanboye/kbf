@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
         else
             assert(TP_string.compare("false") == 0);
     }
-    prefix = prefix+"_"+std::to_string(K)+"_"+input_fasta+"_"+std::to_string(query_set_size);
+    prefix = prefix + "_" + std::to_string(K) + "_" + input_fasta + "_" + std::to_string(query_set_size);
     // parse input reads -- will build a kmer set from that
 
     unordered_set<kmer_t> read_kmers;
@@ -220,10 +220,33 @@ int main(int argc, char *argv[])
         // Test the Fully Dynamic De Bruijn Graph
         cout << "########## Fully Dynamic de Bruijn Graph ##########" << endl;
         auto start = std::chrono::system_clock::now();
-        FDBG fdbg(read_kmers, edge_kmers, read_kmers.size(), K, false);
+        string dsfile = input_fasta.substr( 0, input_fasta.find_last_of( '.' ) ) + "fdbg" + to_string( K ) + ".bin";
+        FDBG Graph;
+        if (file_exists( dsfile )) {
+            //Yes, so avoid reconstructing
+            BOOST_LOG_TRIVIAL(info) << "Loading from " << dsfile;
+            ifstream ifile_ds( dsfile.c_str(), ios::in | ios::binary );
+            Graph.load( ifile_ds );
+            ifile_ds.close();
+            BOOST_LOG_TRIVIAL(info) << "Data structure built in " << Graph.construction_time << " s";
+        } else {
+            cout << "PAY ATTENTION!! IT MAY BE SLOW!!" << endl;
+            BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
+            Graph.build( read_kmers, edge_kmers, read_kmers.size(), K);
+
+            BOOST_LOG_TRIVIAL(info) << "Data structure built in " << Graph.construction_time << " s";
+            BOOST_LOG_TRIVIAL(info) << "Writing data structure to file " << dsfile;
+            ofstream ofile( dsfile.c_str(), ios::out | ios::binary );
+            Graph.save( ofile );
+            ofile.close();
+        }
+        
+        // FDBG fdbg(read_kmers, edge_kmers, read_kmers.size(), K, false);
+
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end - start;
         cout << "@@Build and populate FDBG: " << elapsed_seconds.count() << endl;
+        cout << "BF_size: " << Graph.bitSize() << endl;
         unordered_set<kmer_t>::iterator i;
 
         /*
@@ -237,7 +260,7 @@ int main(int argc, char *argv[])
 
 	BOOST_LOG_TRIVIAL(info) << "All member k-mers correctly detected.";*/
 
-        queryKmers(query_kmers, read_kmers, fdbg, prefix + "_fdbg.txt", K);
+        queryKmers(query_kmers, read_kmers, Graph, prefix + "_fdbg.txt", K);
     }
 
     {

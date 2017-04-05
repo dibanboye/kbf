@@ -3,7 +3,7 @@ from flask import Markup
 from flask import Flask, request, flash, redirect, url_for
 from flask import render_template
 
-from parse import parse_log
+from parse import parse_log, parse_logs
 import sys, os
 app = Flask(__name__)
  
@@ -46,32 +46,48 @@ def index():
     else:    
         print ('###', request.form['submit'])
         dataset, K, query = parse(dataset, K, query)
-
-        print (dataset)
-        print (K)
-        print (query)
         path = '/home/bioinf/project_zizhao_test/KBF/cpp-src/'
-        demo_name = 'log/log_demo_{}_{}_{}.txt'.format(dataset,K,query)
-        
+        if type(K) != list: 
+            print (dataset)
+            print (K)
+            print (query)
+           
+            demo_name = 'log/log_demo_{}_{}_{}.txt'.format(dataset,K,query)
+            
 
-        if not os.path.isfile(demo_name) or request.form['submit'] == 'go':
-            cmd = "{}main data/{} {} {} {} | tee {}".format(path, dataset, K, 'test_demo', query, demo_name)
-            print (cmd)
-            os.system(cmd)
+            if not os.path.isfile(demo_name) or request.form['submit'] == 'go':
+                cmd = "{}main data/{} {} {} {} | tee {}".format(path, dataset, K, 'test_demo', query, demo_name)
+                print (cmd)
+                os.system(cmd)
+            else:
+                print ('{} file exist!'.format(demo_name))
+
+            if os.path.isfile(demo_name):
+                res = parse_log(demo_name)
+                return render_template('index.html', 
+                            start=1,
+                            methods=res['methods'],
+                            populate=res['populate'],
+                            accuracy=res['accuracy'],
+                            query=res['query'],
+                            kmer=res['kmer'],
+                            BF_size=res['BF_size']
+                            )    
+            else:
+                return render_template('index.html', start=0)
         else:
-            print ('{} file exist!'.format(demo_name))
-
-        if os.path.isfile(demo_name):
-            res = parse_log(demo_name)
+            demo_names = ['log/log_demo_{}_{}_{}.txt'.format(dataset,k,query) for k in K]
+            print (demo_names)
+            res = parse_logs(demo_names)
+            print (type(res), len(res))
             return render_template('index.html', 
-                        start=1,
-                        methods=res['methods'],
-                        populate=res['populate'],
-                        accuracy=res['accuracy'],
-                        query=res['query'],
-                        )    
-        else:
-            return render_template('index.html', start=0)
+                            start=2,
+                            method1=res[0],
+                            method2=res[1],
+                            method3=res[2],
+                            method4=res[3],
+                            )  
+        
 
 
 if __name__ == "__main__":
