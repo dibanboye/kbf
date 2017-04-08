@@ -10,7 +10,7 @@ Compact data structures for the representation of de Bruijn graphs are important
 - Go to ./cpp-src
 - Compile
     ```
-    sh compile.sh main
+    sh compile.sh main [random_mode = "shift"] [# of queries = 1000000] 
     ```
 - Test
     ```

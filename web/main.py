@@ -27,7 +27,7 @@ def parse(dataset, K, query):
         q = '10000000'
     
     if K == 'all':
-        k = [5, 10, 20, 25]
+        k = [20, 24, 27, 30]
     else:
         k = int(K)
     

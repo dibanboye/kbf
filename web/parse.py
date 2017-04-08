@@ -55,7 +55,6 @@ def parse_log(file_name):
         'kmer_reading_time': getting_time,
         'BF_size': BF_size
     }
-    print (res)
     return res
 
 # parse multi files
@@ -68,7 +67,6 @@ def parse_logs(file_names):
 
     num_methods = len(res[0]['methods'])
     print ('-'*10)
-    print (res)
     print ('number of methods', num_methods)
     out = []
     for i in range(num_methods):
