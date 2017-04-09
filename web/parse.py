@@ -14,6 +14,7 @@ def parse_log(file_name):
     num_of_query = []
     kmer = []
     BF_size = 0
+    tree_info = []
     for c, lin in enumerate(data):
         if lin[0:3] == '###':
             method = lin.split(' ')
@@ -36,6 +37,10 @@ def parse_log(file_name):
             elif 'Getting' in lin:
                 getting_time = lin.split(' ')[-2].rstrip()
                 kmer.append('%.3f'%(float(lin.split(' ')[1])))
+            elif "# of trees" in lin or 'Averaged tree height' in lin :
+                temp  = lin.split(' ')[-1].rstrip()
+                tree_info.append(temp)
+
         if 'Input finished,' in lin:
             kmer.append(int(lin.split()[6]))
             # print(lin.split())
@@ -53,7 +58,8 @@ def parse_log(file_name):
         # 'num_of_query': num_of_query,
         'kmer': kmer,
         'kmer_reading_time': getting_time,
-        'BF_size': BF_size
+        'BF_size': BF_size,
+        'tree_info': tree_info
     }
     return res
 
@@ -78,7 +84,7 @@ def parse_logs(file_names):
             # 'num_of_query': [],
             'kmer': [],
             'kmer_reading_time': [],
-            'BF_size': []
+            'BF_size': [],
         }
         for k in local_res.keys():
             print (k)
