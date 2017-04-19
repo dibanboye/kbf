@@ -161,6 +161,33 @@ class Forest {
 
     }
 
+    /**
+     * Set the letter of the ith node
+     */
+    void setLetter(const u_int64_t& i, const Letter& l) {
+
+       u_int64_t index = this->nodeIndex(i);
+
+       this->bitarray.set(index + 2, l.bits[0]);
+       this->bitarray.set(index + 3, l.bits[1]);
+
+    }
+
+    /**
+     * Get the letter to the parent of the ith node in the form of an unsigned
+     */
+    unsigned getLetter(const u_int64_t& i) {
+
+       unsigned l;
+
+       u_int64_t index = this->nodeIndex(i);
+
+       l += 2*this->bitarray.get(index + 2);
+       l += this->bitarray.get(index + 3);
+
+       return l;
+    }
+
     // Return index in data of the beginning of the ith node
     u_int64_t nodeIndex(const u_int64_t& i) {
       return 4*i;
@@ -198,6 +225,11 @@ class Forest {
     // Whether the ith node has IN
     bool parent_in_IN(u_int64_t i) {
        return this->bitarray.get(nodeIndex(i) + 1);
+    }
+
+    // Set whether the ith node has IN
+    bool set_parent_in_IN(const u_int64_t& i, bool in) {
+       this->bitarray.set(nodeIndex(i) + 1, in);
     }
 
     // Deduce the parent of the ith node's kmer given the ith node's
@@ -434,6 +466,7 @@ public:
 
     //printHashFunction(kmers);
     //printForest();
+
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end-start;
     construction_time = elapsed_seconds.count();
@@ -621,33 +654,160 @@ public:
   
 
   /**
-   * Reverse edges along the path from node to its root
+   * Reverse all forest edges along the path from node to its root
+   * Used for combining two trees
    */
-  // TODO
   void reverseEdgesToRoot(kmer_t node) {
 
-     //kmer_t parent = this->fo.getNext(node);
+     //BOOST_LOG_TRIVIAL(debug) << "Reversing edges to root of node "
+     //   << get_kmer_str(node, this->k);
+
+     u_int64_t node_kr = this->f.generate_KRHash_val_mod(node, this->k);
+     u_int64_t node_hash = f.perfect_from_KR_mod(node_kr);
+
+     // we are already at the root, nothing to store
+     if (this->fo.isStored(node_hash)) {
+        //BOOST_LOG_TRIVIAL(debug) << "That node is a root. Nothing to reverse.";
+        return;
+     }
+
+     // Get all parent data
+     kmer_t parent;
+     u_int64_t parent_kr, parent_hash;
+     getParentInfo(node, node_kr, node_hash, parent, parent_kr, parent_hash);
+     // Whether forest edges are via IN or OUT
+     bool in = this->fo.parent_in_IN(node_hash);
+     bool parent_in;
+
+     // Need to save this to move forward after we've changed link to parent
+     kmer_t grandparent;
+     u_int64_t grandparent_kr, grandparent_hash;
+
+     // Keep reversing edges until we get to the last one
+     while (!this->fo.isStored(parent_hash)) {
+
+        //BOOST_LOG_TRIVIAL(debug) << "Looking at edge between " <<
+        //   get_kmer_str(node, this->k) << " and " << get_kmer_str(parent, this->k);
+
+        // Save links to the next place on the tree
+        getParentInfo(parent, parent_kr, parent_hash, grandparent,
+           grandparent_kr, grandparent_hash);
+
+        // Need to save how to get from parent to grandparent, since forest
+        // edge will be removed
+        parent_in = this->fo.parent_in_IN(parent_hash);
+
+        //BOOST_LOG_TRIVIAL(debug) << grandparent_hash;
+        // Reverse the edge between node and its parent
+        flipEdge(parent_hash, node_hash, node, in);
+
+        // move forward
+        node = parent;
+        node_kr = parent_kr;
+        node_hash = parent_hash;
+        parent = grandparent;
+        parent_kr = grandparent_kr;
+        parent_hash = grandparent_hash;
+        in = parent_in;
+
+     }
+
+     // Last edge going to root
+     flipEdge(parent_hash, node_hash, node, in);
 
   }
 
 
-  // WORK IN PROGRESS
+  /**
+   * Add a forest edge from node to new_parent.
+   * "in" gives whether you can get from new_parent
+   * to node via IN or not.
+   * So this can be used to "flip" a forest edge, although it doesn't
+   * assume that that edge is currently in the forest (since "in" is
+   * passed in, where
+   * the child was once new_parent, and the parent was once node.
+   */
+  void flipEdge(const u_int64_t& node_hash, const u_int64_t& new_parent_hash,
+     const kmer_t& new_parent_kmer, bool in) {
+
+     //BOOST_LOG_TRIVIAL(debug) << "Switching parent of "
+     //   << node_hash
+     //   << " to parent " << get_kmer_str(new_parent_kmer, this->k);
+
+     // If the child went to parent via OUT, then the parent will get to
+     // the child from IN, etc.
+     this->fo.set_parent_in_IN(node_hash, !in);
+
+     //BOOST_LOG_TRIVIAL(debug) << "Node " << node_hash
+     //   << " reaches its parent via IN? " << this->fo.parent_in_IN(node_hash);
+
+     Letter l;
+     if (in) {
+        // Need the last letter of the new_parent
+        l = access_kmer(new_parent_kmer, this->k, this->k - 1);
+        this->fo.setLetter(node_hash, l);
+     }
+     else {
+        // Need the first letter of the new_parent
+        l = access_kmer(new_parent_kmer, this->k, 0);
+        this->fo.setLetter(node_hash, l);
+
+     }
+
+     //BOOST_LOG_TRIVIAL(debug) << "By what letter? " << this->fo.getLetter(node_hash);
+
+
+   }
+
+
+
+  /**
+   * Get parent info from child info
+   */
   void getParentInfo(const kmer_t& node, const u_int64_t& node_kr, const u_int64_t& node_hash,
                      kmer_t& parent, u_int64_t& parent_kr, u_int64_t& parent_hash) {
 
+      //BOOST_LOG_TRIVIAL(debug) << "Getting info for the parent of "
+      //   << get_kmer_str(node, this->k);
+
       parent = this->fo.getNext(node_hash, node, this->k);
 
+      //BOOST_LOG_TRIVIAL(debug) << "That's parent " << get_kmer_str(parent, this->k);
+
+      // The front and back letters of the edge between node and parent
+      // used to compute hash values of parent
+      unsigned front, back;
+
+      // Get data depending on how we access parent
       if (this->fo.parent_in_IN(node_hash)) {
-        unsigned letter = access_kmer(node, this->k, this->k - 1);
-	unsigned letter_front_parent = access_kmer( parent, this->k, 0 );
-	parent_kr = f.update_KRHash_val_IN_mod(node_kr, letter_front_parent, letter );
+
+         // We got it in IN, so the edge goes from parent to node
+        unsigned back = access_kmer(node, this->k, this->k - 1);
+	unsigned front = access_kmer( parent, this->k, 0 );
+
+	parent_kr = f.update_KRHash_val_IN_mod(node_kr, front, back);
+
 	parent_hash = f.perfect_from_KR_mod(parent_kr);
+
+        //BOOST_LOG_TRIVIAL(debug) << "This edge starts with letter "
+        //   << front << " and ends with letter " << back;
+        //BOOST_LOG_TRIVIAL(debug) << "It has hash value " << parent_hash;
+
       } else {
-        unsigned letter = access_kmer(node, this->k, 0);
-	unsigned letter_back_parent = access_kmer( node, this->k, this->k - 1 );
-	parent_kr = f.update_KRHash_val_OUT_mod(node_kr, letter, letter_back_parent);
+         // We got it in OUT, so the edge goes from node to parent
+
+        unsigned front = access_kmer(node, this->k, 0);
+	unsigned back = access_kmer(parent, this->k, this->k - 1 );
+
+        //BOOST_LOG_TRIVIAL(debug) << "This edge starts with letter "
+        //   << front << " and ends with letter " << back;
+
+	parent_kr = f.update_KRHash_val_OUT_mod(node_kr, front, back);
 	parent_hash = f.perfect_from_KR_mod(parent_kr);
+        //BOOST_LOG_TRIVIAL(debug) << "It has hash value " << parent_hash;
       }
+
+
   }
 
 
