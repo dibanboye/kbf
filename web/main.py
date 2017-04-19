@@ -27,7 +27,7 @@ def parse(dataset, K, query):
         q = '10000000'
     
     if K == 'all':
-        k = [5, 10, 20, 25]
+        k = [20, 24, 27, 30]
     else:
         k = int(K)
     
@@ -56,7 +56,7 @@ def index():
             
 
             if not os.path.isfile(demo_name) or request.form['submit'] == 'go':
-                cmd = "{}main data/{} {} {} {} | tee {}".format(path, dataset, K, 'test_demo', query, demo_name)
+                cmd = "{}main data/{} {} {} {} | tee {}".format(path, dataset, K, 'shift', query, demo_name)
                 print (cmd)
                 os.system(cmd)
             else:
@@ -71,7 +71,8 @@ def index():
                             accuracy=res['accuracy'],
                             query=res['query'],
                             kmer=res['kmer'],
-                            BF_size=res['BF_size']
+                            BF_size=res['BF_size'],
+                            tree_info=res['tree_info']
                             )    
             else:
                 return render_template('index.html', start=0)

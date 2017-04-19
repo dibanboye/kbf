@@ -99,12 +99,13 @@ void queryKmers(vector<kmer_t> &test_kmers, unordered_set<kmer_t> &true_kmers, F
         {
             accuracy = accuracy + 1;
         }
-        else
-        {
-            cout << "Kmer: " << test_kmers[i] << ' ' << get_kmer_str(test_kmers[i], k) << endl;
-            cout << "FDBG reports: " << fdbg.detect_membership(test_kmers[i]) << endl;
-            cout << "find reports: " << (true_kmers.find(test_kmers[i]) != true_kmers.end()) << endl;
-        }
+        // do not print anything.
+        // else
+        // {
+        //     cout << "Kmer: " << test_kmers[i] << ' ' << get_kmer_str(test_kmers[i], k) << endl;
+        //     cout << "FDBG reports: " << fdbg.detect_membership(test_kmers[i]) << endl;
+        //     cout << "find reports: " << (true_kmers.find(test_kmers[i]) != true_kmers.end()) << endl;
+        // }
     }
     cout << "@@Number of queries: " << states.size() << endl;
     cout << "@@Accuracy: " << accuracy / states.size() << endl;
@@ -159,6 +160,46 @@ vector<kmer_t> sample_kmers(unordered_set<kmer_t> &kmer_set, int const set_size,
     return query_kmers;
 }
 
+vector<kmer_t> sample_kmers_random(unordered_set<kmer_t> &kmer_set, int const set_size, const int K, bool TP = false)
+{
+
+    vector<kmer_t> query_kmers;
+    
+    kmer_t max_kmer_range = 0; 
+    for (int i = 0; i < K; i ++)
+    {
+        max_kmer_range <<= 2;
+        max_kmer_range |= 3;
+    }
+    cout << "!! max_kmer_range=" << max_kmer_range << " for K=" << K << endl;
+    // set up a random number gen
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    // std::uniform_int_distribution<> Kmer_dis(0, max_kmer_range); # segmentation fault. Probably max_kmer_range too large for dis
+    std::uniform_int_distribution<> base_dis(0, 3);
+    const char base_table[4] = {'A', 'C', 'G', 'T'};
+
+    //sample the input kmers
+    int i = query_kmers.size();
+    cout << "begin sampling " << set_size << endl;
+    string string_kmer;
+    kmer_t sample_kmer;
+    while (i < set_size)
+    {   
+        string_kmer = "";
+        for (int s = 0; s < K; s++){
+            auto base = base_table[base_dis(gen)];
+            string_kmer += base;
+        }
+        sample_kmer = mer_string_to_binary(string_kmer.c_str(), K);
+        // assert (sample_kmer <= max_kmer_range);
+        query_kmers.push_back(sample_kmer);
+        i++;
+    }
+    return query_kmers;
+}
+
+
 /////////////////////////////////////////////////////////
 // main
 /////////////////////////////////////////////////////////
@@ -177,7 +218,7 @@ int main(int argc, char *argv[])
     {
         cerr << "\tMissing required arguments." << endl;
         cerr << "\tUsage:" << endl;
-        cerr << "\tkbf <reads.fa> <k> [outfile prefix = 'test'] [# queries = 1M] [use all TP = 'false']" << endl;
+        cerr << "\tkbf <reads.fa> <k> [outfile random_mode = 'shift'] [# queries = 1M] [use all TP = 'false']" << endl;
         exit(1);
     }
 
@@ -185,10 +226,11 @@ int main(int argc, char *argv[])
     int K = stoi(argv[2]);
     unsigned long query_set_size = 1000000;
     string prefix = "log/test";
+    string random_mode = "shift";
     bool TP = false;
     if (argc > 3)
     {
-        prefix = argv[3];
+        random_mode = argv[3];
     }
     if (argc > 4)
     {
@@ -214,8 +256,21 @@ int main(int argc, char *argv[])
     std::chrono::duration<double> elapsed_seconds = end - start;
 
     cout << "@@Getting " << read_kmers.size() + edge_kmers.size() << " mers took " << elapsed_seconds.count() << " s" << endl;
-    vector<kmer_t> query_kmers = sample_kmers(read_kmers, query_set_size, K, TP);
-
+    
+    vector<kmer_t> query_kmers ; 
+    if (random_mode == "shift"){
+        cout << "@@random mode " << random_mode << endl;
+        query_kmers = sample_kmers(read_kmers, query_set_size, K, TP);
+    }
+    else if (random_mode == "random"){
+        cout << "@@random mode " << random_mode << endl;
+        query_kmers = sample_kmers_random(read_kmers, query_set_size, K, TP);
+    }
+    else{
+        cout << "Undefined random mode " << random_mode << endl;
+        return 0;
+    }
+    
     {
         // Test the Fully Dynamic De Bruijn Graph
         cout << "########## Fully Dynamic de Bruijn Graph ##########" << endl;
@@ -245,7 +300,7 @@ int main(int argc, char *argv[])
 
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end - start;
-        cout << "@@Build and populate FDBG: " << elapsed_seconds.count() << endl;
+        cout << "@@Build and populate FDBG: " << Graph.construction_time << endl;
         cout << "BF_size: " << Graph.bitSize() << endl;
         unordered_set<kmer_t>::iterator i;
 
@@ -261,6 +316,20 @@ int main(int argc, char *argv[])
 	BOOST_LOG_TRIVIAL(info) << "All member k-mers correctly detected.";*/
 
         queryKmers(query_kmers, read_kmers, Graph, prefix + "_fdbg.txt", K);
+         /** TREE HEIGHT TESTS */
+
+        BOOST_LOG_TRIVIAL(info) << "Tree height tests ...";
+
+        // Compute data about trees in the forest
+        unsigned num_trees;
+        double avg_height; // average height of trees
+        unsigned num_above; // number above the supposed max
+        unsigned num_below; // number below the supposed min
+        
+        Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+        cout << "@@ # of trees: " << num_trees << endl;
+        cout << "@@ Averaged tree height: " << avg_height << endl;
     }
 
     {
