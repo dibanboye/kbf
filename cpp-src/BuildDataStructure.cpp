@@ -14,6 +14,7 @@
 #include "FDBG.cpp"
 #include "formatutil.cpp"
 #include "KBFUtil.hpp"
+#include "TestUtil.cpp"
 
 using namespace std;
 
@@ -73,35 +74,10 @@ int main(int argc, char* argv[]) {
    //   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.bitSize() / (8.0 * 1024 * 1024);
    //   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.bitSize() / static_cast<double>( Graph.n );
 
-   BOOST_LOG_TRIVIAL(info) << "Membership test...";
 
-   std::random_device rd;
-   std::mt19937 gen(rd());
-   std::uniform_int_distribution<u_int64_t> sample_dis(0, pow(2, 2*k) - 1);
-   kmer_t kk;
-   // for (unsigned i = 0; i < 10000000; ++i) {
-   //   //generate a random k-mer
-   //   kk = sample_dis( gen ) ;
-   //   BOOST_LOG_TRIVIAL( info ) << "Testing k-mer: " << get_kmer_str( kk, k ) << ' ' <<  Graph.detect_membership(kk);
-
-   // }
-     
-   unordered_set<kmer_t>::iterator i; 
-   for (i = kmers.begin(); i != kmers.end(); ++i) {
-      //      BOOST_LOG_TRIVIAL(debug) << 
-      //      BOOST_LOG_TRIVIAL(debug) << Graph.inefficient_detect_membership( *i ) << ' ' << Graph.detect_membership( *i );
-            if (!Graph.detect_membership( *i )) {
-            	 BOOST_LOG_TRIVIAL(fatal) << "Membership test failed.";
-            	 exit(1);
-            }
-   }
-
-
-   BOOST_LOG_TRIVIAL(info) << "Membership tests passed!";
-
-
-   /** TREE HEIGHT TESTS */
-
+   /**
+    * First batch of tree height tests
+    */
    BOOST_LOG_TRIVIAL(info) << "Tree height tests ...";
 
    // Compute data about trees in the forest
@@ -119,7 +95,62 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
       << num_below;
 
- 
+  /**
+   * Add a bunch of random edges
+   */
+   BOOST_LOG_TRIVIAL(info) << "Add edges test ...";
+
+   // The number of random kmers we will try
+   unsigned count = 100;
+
+   unsigned num_edges_added = addRandomEdges(count, Graph, kmers);
+
+   BOOST_LOG_TRIVIAL(debug) << "Added " << num_edges_added << " edges";
+
+
+   /**
+    * Second batch of tree height tests
+    */
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge additions/removals ...";
+
+  
+   Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+   BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";
+   BOOST_LOG_TRIVIAL(debug) << "The average height of a tree is " << avg_height;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees above the max height is  "
+      << num_above;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
+      << num_below;
+
+
+
+   BOOST_LOG_TRIVIAL(info) << "Membership test...";
+
+   std::random_device rd;
+   std::mt19937 gen(rd());
+   std::uniform_int_distribution<u_int64_t> sample_dis(0, pow(2, 2*k) - 1);
+   kmer_t kk;
+   // for (unsigned i = 0; i < 10000000; ++i) {
+   //   //generate a random k-mer
+   //   kk = sample_dis( gen ) ;
+   //   BOOST_LOG_TRIVIAL( info ) << "Testing k-mer: " << get_kmer_str( kk, k ) << ' ' <<  Graph.detect_membership(kk);
+
+   // }
+
+   unordered_set<kmer_t>::iterator i;     
+   for (i = kmers.begin(); i != kmers.end(); ++i) {
+      //      BOOST_LOG_TRIVIAL(debug) << 
+      //      BOOST_LOG_TRIVIAL(debug) << Graph.inefficient_detect_membership( *i ) << ' ' << Graph.detect_membership( *i );
+            if (!Graph.detect_membership( *i )) {
+            	 BOOST_LOG_TRIVIAL(fatal) << "Membership test failed.";
+            	 exit(1);
+            }
+   }
+
+
+   BOOST_LOG_TRIVIAL(info) << "Membership tests passed!";
+
    return 0;
 }
 

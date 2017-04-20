@@ -210,11 +210,21 @@ class Forest {
     /**
      * Store the kmer of the ith node
      */
-    void storeNode(u_int64_t i, kmer_t str) {
+    void storeNode(const u_int64_t& i, const kmer_t& str) {
 
        this->roots[i] = str;
 
        this->bitarray.set(nodeIndex(i), true);
+    }
+
+    /**
+     * Unstore the kmer of the ith node
+     */
+    void unstoreNode(const u_int64_t& i) {
+
+       this->roots.erase(i);
+
+       this->bitarray.set(nodeIndex(i), false);
     }
 
     // Returns whether the ith node is stored
@@ -464,9 +474,6 @@ public:
 
     //cout << "SIZE: " << this->fo.roots.size() << endl;
 
-    //printHashFunction(kmers);
-    //printForest();
-
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end-start;
     construction_time = elapsed_seconds.count();
@@ -591,22 +598,85 @@ public:
 
   }
 
+
+  /**
+   * Given a node, get the other nodes for all edges
+   * that don't exist. For example, if we have ATTC and there
+   * does not exist an edge ATTCA, we return TTCA. The nodes may or
+   * may not exist in the graph.
+   * This is for generating random edges.
+   */
+  void getNonExistentEdges(const kmer_t& node, vector<kmer_t>& not_neighbors_in,
+     vector<kmer_t>& not_neighbors_out) {
+
+     not_neighbors_in.clear();
+     not_neighbors_out.clear();
+
+     u_int64_t hash = this->f(node);
+
+     Letter l;
+     kmer_t neighbor;
+     for (unsigned i = 0; i < 4; i++) {
+
+        if (this->IN.get(hash,i) == 0) {
+           l = Letter (i);
+           neighbor = pushOnFront(node, l, this->k);
+           //BOOST_LOG_TRIVIAL(debug) << "Non existent edge from "
+           //   << get_kmer_str(neighbor, this->k);
+           not_neighbors_in.push_back(neighbor);
+        }
+
+        if (this->OUT.get(hash,i) == 0) {
+           l = Letter (i);
+           neighbor = pushOnBack(node, l, this->k);
+           //BOOST_LOG_TRIVIAL(debug) << "Non existent edge to "
+           //   << get_kmer_str(neighbor, this->k);
+           not_neighbors_out.push_back(neighbor);
+        }
+
+     }
+
+  }
+
   /*
    * Add an edge dynamically to the data structure.
    * From u to v
    * Updates the forest dynamically.
    * Nothing happens if the k-mers aren't compatible.
+   * Returns bool of whether an edge is actually added or not
    */
   // TODO
-  void dynamicAddEdge( const kmer_t& u, const kmer_t& v ) {
+  bool dynamicAddEdge( const kmer_t& u, const kmer_t& v ) {
+
+    //BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, this->k)
+    //   << " to " << get_kmer_str(v, this->k) << "...";
+
     //check if u, v are compatible
     unsigned ui, vi;
-    for (unsigned i = 0; i < (k - 1); ++i) {
-      ui = access_kmer( u, k, i + 1 );
-      vi = access_kmer( v, k, i );
-      if (ui != vi)
-	return;
+    for (unsigned i = 0; i < (this->k - 1); ++i) {
+      ui = access_kmer( u, this->k, i + 1 );
+      vi = access_kmer( v, this->k, i );
+      //BOOST_LOG_TRIVIAL(debug) << "Checking the " << (i+1) << "/" << i << " spots";
+      if (ui != vi) {
+        //BOOST_LOG_TRIVIAL(debug) << "Cannot add an edge because there is not "
+        //   << " k-1 length overlap.";
+	return false;
+      }
     }
+
+    // For testing
+    //if (!detect_membership(u)) {
+       //BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(u, this->k)
+       //   << " is not in the graph.";
+    //   return false;
+    //}
+
+    //if (!detect_membership(v)) {
+       //BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(v, this->k)
+       //   << " is not in the graph.";
+    //   return false;
+    //}
+    
 
     //making it this far means that an edge can be added between them
     //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
@@ -615,8 +685,10 @@ public:
     u_int64_t hashV = f( v );
     unsigned outIndex = access_kmer( v, k, k - 1 );
     unsigned inIndex = access_kmer( u, k, 0 );
-    if ( OUT.get(hashU, outIndex) )
-      return; // edge already exists
+    if ( OUT.get(hashU, outIndex) ) {
+      BOOST_LOG_TRIVIAL(debug) << "This edge already exists";
+      return false; // edge already exists
+    }
 
     //making it here means that edge is compatible and edge is not already in graph
     //So: begin logic for adding edge
@@ -626,30 +698,59 @@ public:
     // Now, need to update the forest
     // Basically, there is the potential to merge too small trees
 
+    //BOOST_LOG_TRIVIAL(debug) << "Finding the trees that these two edges are in ...";
+
     // Find the heights of the trees these two are in, and their roots
-    kmer_t root_u = getRoot(u);
-    kmer_t root_v = getRoot(v);
-    unsigned height_u = getTreeHeightRoot(u);
-    unsigned height_v = getTreeHeightRoot(v);
+    kmer_t root_u;
+    u_int64_t root_u_hash;
+    getRoot(u, root_u, root_u_hash);
+    kmer_t root_v;
+    u_int64_t root_v_hash;
+    getRoot(v, root_v, root_v_hash);
+
+    //BOOST_LOG_TRIVIAL(debug) << "root " << get_kmer_str(root_u, this->k)
+    //   << " and root " << get_kmer_str(root_v, this->k);
+
+
+
+    unsigned height_u = getTreeHeightRoot(root_u);
+    unsigned height_v = getTreeHeightRoot(root_v);
+
+    //BOOST_LOG_TRIVIAL(debug) << "One is in a tree of height " << height_u
+    //   << " with root " << get_kmer_str(root_u, this->k)
+    //   << " and the other a tree of height " << height_v
+    //   << " with root " << get_kmer_str(root_v, this->k);
 
     if (root_u == root_v) {
        // No trees to merge
-       return;
+       //BOOST_LOG_TRIVIAL(debug) << "Both trees already have the same root. No merging.";
+       return true;
     }
 
     // Both trees are too small. Merge them.
     if ((height_u < this->alpha) && (height_v < this->alpha)) {
 
+       //BOOST_LOG_TRIVIAL(debug) << "Both trees are below the min height. Merging.";
        // the TO kmer's (v) tree is left alone
        // the FROM kmer's tree is added to the TO kmer's tree
        // by reversing all edges from the FROM kmer to its root
-       // the root of the FROM kmer is unstored
-
        reverseEdgesToRoot(u);
 
+       // the root of the FROM kmer is unstored
+       this->fo.unstoreNode(root_u_hash);
+
+       // Add forest edge from u to v
+       // u's parent is switched
+       Letter l (outIndex);
+       this->fo.setNode(hashU, false, l);
+
+       //BOOST_LOG_TRIVIAL(debug) << "Merged trees.";
+    }
+    else {
+        //BOOST_LOG_TRIVIAL(debug) << "Both trees were at least the minimum height. No merging.";
     }
 
-    return;
+    return true;
   }
   
 
@@ -758,7 +859,6 @@ public:
 
 
    }
-
 
 
   /**
@@ -992,7 +1092,7 @@ public:
   /**
    * Get the root in the forest that this node goes to
    */
-  kmer_t getRoot(kmer_t node) {
+  void getRoot(kmer_t node, kmer_t& root, u_int64_t& root_hash) {
 
     u_int64_t kr = f.generate_KRHash_val_mod(node, this->k);
     u_int64_t hash = f.perfect_from_KR_mod(kr);
@@ -1003,7 +1103,9 @@ public:
 
     if (this->fo.isStored(hash)) {
       //BOOST_LOG_TRIVIAL(debug) << "Root is " << node;
-      return node;
+      root = node;
+      root_hash = hash;
+      return;
     } 
 
     // Keep getting parent until we've found a root
@@ -1020,7 +1122,8 @@ public:
     }
 
     //BOOST_LOG_TRIVIAL(debug) << "Root is " << node;
-    return node;
+    root = node;
+    root_hash = hash;
 
   }
 
@@ -1108,7 +1211,9 @@ public:
      //   << get_kmer_str(node, this->k);
 
      // get the root of this tree
-     kmer_t root = getRoot(node);
+     kmer_t root;
+     u_int64_t root_hash;
+     getRoot(node, root, root_hash);
 
      return getTreeHeightRoot(root);
   }
