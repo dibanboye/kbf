@@ -95,23 +95,49 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
       << num_below;
 
-  /**
-   * Add a bunch of random edges
-   */
-   BOOST_LOG_TRIVIAL(info) << "Add edges test ...";
+   BOOST_LOG_TRIVIAL(info) << "Remove edges test ...";
 
-   // The number of random kmers we will try
-   unsigned count = 100;
+   // How many random edges will be randomly removed
+   unsigned remove_edge_count = 10000;
+   unordered_set<kmer_t> removed_edges;
 
-   unsigned num_edges_added = addRandomEdges(count, Graph, kmers);
+   removeRandomEdges(remove_edge_count, Graph, edgemers, removed_edges);
 
-   BOOST_LOG_TRIVIAL(debug) << "Added " << num_edges_added << " edges";
-
+   BOOST_LOG_TRIVIAL(info) << removed_edges.size() << " edges removed.";
 
    /**
-    * Second batch of tree height tests
+    * tree height tests after edge removal
     */
-   BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge additions/removals ...";
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge removals ...";
+  
+   Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+   BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";
+   BOOST_LOG_TRIVIAL(debug) << "The average height of a tree is " << avg_height;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees above the max height is  "
+      << num_above;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
+      << num_below;
+
+
+   BOOST_LOG_TRIVIAL(info) << "Add edges test (adding those edges back in) ...";
+
+   unordered_set<kmer_t>::iterator removed_edge_it;
+   kmer_t prefix;
+   kmer_t suffix;
+
+   for (removed_edge_it = removed_edges.begin(); removed_edge_it != removed_edges.end();
+      removed_edge_it++) {
+
+      Graph.split_edge(*removed_edge_it, prefix, suffix);
+      Graph.dynamicAddEdge(prefix, suffix);
+
+   }
+
+   /**
+    * tree height tests after edge addition
+    */
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge additions ...";
 
   
    Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
@@ -122,6 +148,7 @@ int main(int argc, char* argv[]) {
       << num_above;
    BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
       << num_below;
+
 
 
 

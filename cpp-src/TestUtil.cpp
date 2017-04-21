@@ -113,3 +113,60 @@ unsigned addRandomEdges(const unsigned& count, FDBG& Graph, unordered_set<kmer_t
 
    return added_edges_count;
 }
+
+
+/**
+ * Remove random edges from the graph
+ * count is not the number of edges removed
+ * Adds all removed edges to removed
+ */
+void removeRandomEdges(const unsigned& count, FDBG& Graph,
+   unordered_set<kmer_t>& edgemers, unordered_set<kmer_t>& removed) {
+
+   // Random numbers determining which kmers
+   vector<unsigned> randoms;
+   randomNumbers(count, Graph.k, randoms);
+
+   // Iterate through kmers skipping by a random number each time   
+   unordered_set<kmer_t>::iterator i;
+   i = edgemers.begin(); 
+
+   // How many we have already removed
+   unsigned removed_count = 0;
+
+   kmer_t prefix;
+   kmer_t suffix;
+   unsigned m = 0;
+   while ((removed_count < count) && (removed.size() != edgemers.size())) {
+
+      // Skip random number of edgemers
+      for (int j = 0; (j < randoms[m]) && (i != edgemers.end()); j++) {     
+         ++i;
+         // loop around when we get to the end
+         if (i == edgemers.end()) {
+            i = edgemers.begin();
+         }
+      }
+
+      // Now we have a random edgemer
+      //BOOST_LOG_TRIVIAL(debug) << "Random edgemer "
+      //   << get_kmer_str(*i, Graph.k + 1) << " generated.";
+
+      if (removed.find(*i) == removed.end()) {
+         // We have not already removed this edgemer
+         Graph.split_edge(*i, prefix, suffix);
+         Graph.dynamicRemoveEdge(prefix, suffix);
+         removed.insert(*i);
+         removed_count++;
+      }
+
+      // Use the next random number
+      m++;
+      if (m >= randoms.size()) {
+         // Loop back to the first if we run out
+         m = 0;
+      }
+   }
+
+}
+

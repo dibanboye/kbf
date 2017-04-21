@@ -645,7 +645,6 @@ public:
    * Nothing happens if the k-mers aren't compatible.
    * Returns bool of whether an edge is actually added or not
    */
-  // TODO
   bool dynamicAddEdge( const kmer_t& u, const kmer_t& v ) {
 
     //BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, this->k)
@@ -752,6 +751,81 @@ public:
 
     return true;
   }
+
+  /*
+   * Remove an edge from the data structure.
+   * From u to v
+   * Updates the forest.
+   * Returns bool of whether an edge is actually deleted or not
+   */
+  bool dynamicRemoveEdge( const kmer_t& u, const kmer_t& v ) {
+
+    //BOOST_LOG_TRIVIAL(debug) << "Deleting an edge from " << get_kmer_str(u, this->k)
+    //   << " to " << get_kmer_str(v, this->k) << "...";
+
+    //check if u, v are compatible
+    unsigned ui, vi;
+    for (unsigned i = 0; i < (this->k - 1); ++i) {
+      ui = access_kmer( u, this->k, i + 1 );
+      vi = access_kmer( v, this->k, i );
+      //BOOST_LOG_TRIVIAL(debug) << "Checking the " << (i+1) << "/" << i << " spots";
+      if (ui != vi) {
+        //BOOST_LOG_TRIVIAL(debug) << "Cannot add an edge because there is not "
+        //   << " k-1 length overlap.";
+	return false;
+      }
+    }
+
+    // For testing
+    if (!detect_membership(u)) {
+       BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(u, this->k)
+          << " is not in the graph.";
+       return false;
+    }
+
+    if (!detect_membership(v)) {
+       BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(v, this->k)
+          << " is not in the graph.";
+       return false;
+    }
+    
+    //making it this far means that an edge can be removed between them
+    //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
+    //if edge was already present, quit
+    u_int64_t hashU = f( u );
+    u_int64_t hashV = f( v );
+    unsigned outIndex = access_kmer( v, k, k - 1 );
+    unsigned inIndex = access_kmer( u, k, 0 );
+
+    if ( !OUT.get(hashU, outIndex) ) {
+      BOOST_LOG_TRIVIAL(debug) << "This edge doesn't exist.";
+      return false; // edge doesn't exist
+    }
+
+    // Remove this edge from IN and OUT
+    OUT.set(hashU, outIndex, false);
+    IN.set(hashV, inIndex, false);
+
+    // Now, need to update the forest if it includes this edge
+    if ((!this->fo.isStored(hashU)) && (this->fo.getNext(hashU, u, this->k) == v)) {
+       // u's parent is v
+       // u is now made root of its subtree
+       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(u, this->k) << " is now root of its subtree.";
+       this->fo.storeNode(hashU, u);
+    }
+    else if ((!this->fo.isStored(hashV)) && (this->fo.getNext(hashV, v, this->k) == u)) {
+       // v's parent is u
+       // v is now made root of its subtree
+       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(v, this->k) << " is now root of its subtree.";
+       this->fo.storeNode(hashV, v);
+    }
+    else {
+       // this edge is not in the forest
+    } 
+
+    return true;
+  }
+
   
 
   /**
@@ -1582,22 +1656,36 @@ public:
   }
 
   // Print the forest with the Kmer strings down the side
-  void printForest() {
+  void printForest(unordered_set<kmer_t>& kmers) {
  
     cout << setw(30) << "===== FOREST =====" << endl << endl;
+
  
-    for (int i = 0; i < this->n; ++i) {
-        cout << setw(10) << i;
+    cout << setw(10) << ""; 
+    cout << setw(10) << "Parent";
+    cout << setw(10) << "Is root?" << endl;;
 
-        u_int64_t index = this->fo.nodeIndex(i);
+    unordered_set<kmer_t>::iterator i;
 
-        cout << setw(5) << this->fo.bitarray.get(index);
-        cout << setw(5) << this->fo.bitarray.get(index + 1);
-        cout << setw(5) << this->fo.bitarray.get(index + 2);
-        cout << setw(5) << this->fo.bitarray.get(index + 3);
-        cout << endl;
+    for (i = kmers.begin(); i != kmers.end(); ++i) {
+        cout << setw(10) << get_kmer_str(*i, this->k);
+
+        u_int64_t hash = this->f(*i);
+
+        if (!this->fo.isStored(hash)) {
+            // This is not a root
+           cout << setw(10) << get_kmer_str(this->fo.getNext(hash, *i, this->k), this->k);
+           cout << setw(10) << "No" << endl;
+        }
+        else {
+            // This is a root
+           cout << setw(10) << "None";
+           cout << setw(10) << "Yes" << endl;
+        }
+ 
     } 
 
+    cout << endl;
 
   }
 
