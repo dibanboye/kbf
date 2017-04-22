@@ -574,6 +574,9 @@ public:
      unsigned height;
      kmer_t root;
 
+     map<kmer_t, unsigned> heights;
+     vector<kmer_t> sorted_kmers;
+
      // go through each tree
 
      map<u_int64_t, kmer_t>::iterator iter;
@@ -584,7 +587,7 @@ public:
         //BOOST_LOG_TRIVIAL(debug) << "Looking at tree with root "
         //   << get_kmer_str(root, this->k);
 
-        height = getTreeHeightRoot(root);
+        height = getTreeHeightRoot(root, heights, sorted_kmers);
 
         avg_height += (height*weight);
 
@@ -712,8 +715,18 @@ public:
     //   << " and root " << get_kmer_str(root_v, this->k);
 
 
-    unsigned treeheight_u = getTreeHeightRoot(root_u);
-    unsigned treeheight_v = getTreeHeightRoot(root_v);
+    map<kmer_t, unsigned> u_heights;
+    vector<kmer_t> u_sorted_kmers;
+    map<kmer_t, unsigned> v_heights;
+    vector<kmer_t> v_sorted_kmers;
+    unsigned treeheight_u = getTreeHeightRoot(root_u, u_heights, u_sorted_kmers);
+    unsigned treeheight_v = getTreeHeightRoot(root_v, v_heights, v_sorted_kmers);
+
+    //map<kmer_t, unsigned>::iterator iter;
+    //for (iter = u_heights.begin(); iter != u_heights.end(); ++iter) {
+    //   BOOST_LOG_TRIVIAL(debug) << "The height of kmer " << get_kmer_str(iter->first, this->k)
+    //      << " is " << iter->second;
+    //}
 
     //BOOST_LOG_TRIVIAL(debug) << "One is in a tree of height " << height_u
     //   << " with root " << get_kmer_str(root_u, this->k)
@@ -725,6 +738,7 @@ public:
        //BOOST_LOG_TRIVIAL(debug) << "Both trees already have the same root. No merging.";
        return true;
     }
+
 
     // Both trees are too small. Merge them.
     if ((treeheight_u < this->alpha) && (treeheight_v < this->alpha)) {
@@ -793,7 +807,71 @@ public:
    
 
    
-  /*
+  /**
+   * Merge two trees into one at the edge u,v
+   * New root is sampled
+   * u_heights and v_heights give the heights of all kmers in each tree
+   * Returns whether the two trees were successfully merged
+   */
+  // TODO
+  // WORK IN PROGRESS
+  bool mergeTrees(const kmer_t& u, const kmer_t& v, const map<kmer_t, unsigned>& u_heights,
+     const map<kmer_t, unsigned>& v_heights, const vector<kmer_t>& u_sorted_kmers,
+     const vector<kmer_t>& v_sorted_kmers) {
+
+     //for (int i = 0; i < u_sorted_kmers.size(); ++i) {
+     //   BOOST_LOG_TRIVIAL(debug) << "kmer " << get_kmer_str(u_sorted_kmers[i], this->k) 
+     //      << " has height " << u_heights.at(u_sorted_kmers[i]);
+     //}
+
+     //for (int i = 0; i < v_sorted_kmers.size(); ++i) {
+     //   BOOST_LOG_TRIVIAL(debug) << "kmer " << get_kmer_str(v_sorted_kmers[i], this->k) 
+     //      << " has height " << v_heights.at(v_sorted_kmers[i]);
+     //}
+
+     unsigned treeheight_u = 0;
+     unsigned height_u = 0;
+     unsigned height_v = 0;
+     unsigned treeheight_v = 0;
+
+     // The distance from the furthest leaf in u along the path from that leaf to root_u
+     // then down to u, over to v, up to v's root, and then down v's furthest path that
+     // the root should be
+     unsigned root_hops = 0.5*(treeheight_u + height_u + 1 + height_v + treeheight_v);
+
+     if (root_hops > (3/2)*this->alpha + 1) {
+        // If we merge these trees, the resulting tree will be too big
+        BOOST_LOG_TRIVIAL(warning) << "Trees unable to be merged, the resulting tree would be too tall.";
+        return false;
+     }
+
+     // The root is somewhere in u's tree
+     if (root_hops <= treeheight_u + height_u) {
+        BOOST_LOG_TRIVIAL(debug) << "The root should be in " << get_kmer_str(u, this->k)
+           << "'s tree";
+        
+        // How much up from u the new root is
+        unsigned hops = treeheight_u + height_u - root_hops;
+        BOOST_LOG_TRIVIAL(debug) << "It is " << hops << " hops up";
+
+     }
+     // The root is somewhere in v's tree
+     else {
+        BOOST_LOG_TRIVIAL(debug) << "The root should be in " << get_kmer_str(v, this->k)
+           << "'s tree";
+
+        // How much up from v the new root is
+        unsigned hops = root_hops - treeheight_u + height_u;
+        BOOST_LOG_TRIVIAL(debug) << "It is " << hops << " hops up";
+
+ 
+     }
+
+     return true;
+
+  }
+
+   /*
    * Remove an edge from the data structure.
    * From u to v
    * Updates the forest.
@@ -1241,6 +1319,49 @@ public:
   }
 
   /**
+   * Travel up k hops from the node
+   * If gets to root before finished hopping just returns the root
+   */
+  // TODO
+  // WORK IN PROGRESS
+  void travelUp(kmer_t node, const unsigned& hops, kmer_t& ancestor, u_int64_t& ancestor_hash) {
+
+    u_int64_t kr = f.generate_KRHash_val_mod(node, this->k);
+    u_int64_t hash = f.perfect_from_KR_mod(kr);
+    u_int64_t parent;
+    u_int64_t parent_kr;
+
+    BOOST_LOG_TRIVIAL(debug) << "Travelling up " << hops << " hops from "
+       << get_kmer_str(node, this->k);
+
+    if (this->fo.isStored(hash)) {
+      BOOST_LOG_TRIVIAL(debug) << "Travelled 0 hops";
+      ancestor = node;
+      ancestor_hash = hash;
+      return;
+    } 
+
+    unsigned hop_count = 0;
+    // Keep getting parent until we've travelled enough hops or found a root
+    while ((hop_count < hops) && !this->fo.isStored(hash)) {
+
+       getParent(node, kr, parent, parent_kr);
+       BOOST_LOG_TRIVIAL(debug) << "Moved to parent " << get_kmer_str(parent, this->k);
+       hash = f.perfect_from_KR_mod(parent_kr);
+       node = parent;
+       kr = parent_kr;
+       hop_count++;
+    }
+
+    BOOST_LOG_TRIVIAL(debug) << "Finished travelling. Found " << get_kmer_str(node, this->k);
+    ancestor = node;
+    ancestor_hash = hash;
+
+    return;
+  }
+
+
+  /**
    * Given a node, get all of its children in the forest
    */
   void getChildren(const kmer_t& node, vector<kmer_t>& children) {
@@ -1318,7 +1439,8 @@ public:
   /**
    * Given a kmer, find the height of the tree that node is in in the forest
    */
-  unsigned getTreeHeight(const kmer_t& node) {
+  unsigned getTreeHeight(const kmer_t& node, map<kmer_t, unsigned>& heights,
+     vector<kmer_t>& sorted_kmers) {
 
      //BOOST_LOG_TRIVIAL(debug) << "Getting the height of tree with node "
      //   << get_kmer_str(node, this->k);
@@ -1328,15 +1450,19 @@ public:
      u_int64_t root_hash;
      getRoot(node, root, root_hash);
 
-     return getTreeHeightRoot(root);
+     return getTreeHeightRoot(root, heights, sorted_kmers);
   }
 
   
    
   /**
    * Same as above, but it is assumed that the input node is the root of the tree
+   * Keeps track of each kmer in tree and its height
+   * Also makes vector of kmers sorted from smallest to biggest height
    */
-  unsigned getTreeHeightRoot(const kmer_t& root) {
+  // TODO: Make array copying more efficient
+  unsigned getTreeHeightRoot(const kmer_t& root, map<kmer_t, unsigned>& heights,
+     vector<kmer_t>& sorted_kmers) {
 
      //BOOST_LOG_TRIVIAL(debug) << "The root of this tree is node "
      //  << get_kmer_str(root, this->k);
@@ -1344,6 +1470,13 @@ public:
      // keep descending down the tree by getting children until
      // there doesn't exist anymore. Count how many times this
      // must happen
+
+     heights.clear();
+     sorted_kmers.clear();
+
+     // add root to heights
+     heights[root] = 0;
+     sorted_kmers.push_back(root);
 
      vector<kmer_t> children;
      getChildren(root, children);
@@ -1357,9 +1490,14 @@ public:
 
      // Until we have reached the most far node in the tree
      while (children.size() != 0) {
+        height++;
 
         // Get children of each child
         for (int i = 0; i < children.size(); i++) {
+
+           // add child with height
+           heights[children[i]] = height;
+           sorted_kmers.push_back(children[i]);
 
            //BOOST_LOG_TRIVIAL(debug) << "Getting the children of node "
            //  << get_kmer_str(children[i], this->k);
@@ -1378,8 +1516,6 @@ public:
 
         children = children_children;
         children_children.clear();
-
-        height++;
 
         //BOOST_LOG_TRIVIAL(debug) << "There are now " << children.size() << " children";
      }
