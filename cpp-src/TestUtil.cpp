@@ -1,5 +1,7 @@
 #include <random>
 #include <math.h>
+#include <set>
+#include <unordered_set>
 
 /**
  * Functions to help test the FDBG data structure
