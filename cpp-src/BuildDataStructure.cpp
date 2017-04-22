@@ -95,6 +95,7 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
       << num_below;
 
+
    BOOST_LOG_TRIVIAL(info) << "Remove edges test ...";
 
    // How many random edges will be randomly removed
@@ -109,7 +110,8 @@ int main(int argc, char* argv[]) {
     * tree height tests after edge removal
     */
    BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge removals ...";
-  
+
+ 
    Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
 
    BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";

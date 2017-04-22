@@ -702,18 +702,17 @@ public:
     // Find the heights of the trees these two are in, and their roots
     kmer_t root_u;
     u_int64_t root_u_hash;
-    getRoot(u, root_u, root_u_hash);
+    unsigned height_u = getRoot(u, root_u, root_u_hash);
     kmer_t root_v;
     u_int64_t root_v_hash;
-    getRoot(v, root_v, root_v_hash);
+    unsigned height_v = getRoot(v, root_v, root_v_hash);
 
     //BOOST_LOG_TRIVIAL(debug) << "root " << get_kmer_str(root_u, this->k)
     //   << " and root " << get_kmer_str(root_v, this->k);
 
 
-
-    unsigned height_u = getTreeHeightRoot(root_u);
-    unsigned height_v = getTreeHeightRoot(root_v);
+    unsigned treeheight_u = getTreeHeightRoot(root_u);
+    unsigned treeheight_v = getTreeHeightRoot(root_v);
 
     //BOOST_LOG_TRIVIAL(debug) << "One is in a tree of height " << height_u
     //   << " with root " << get_kmer_str(root_u, this->k)
@@ -727,7 +726,7 @@ public:
     }
 
     // Both trees are too small. Merge them.
-    if ((height_u < this->alpha) && (height_v < this->alpha)) {
+    if ((treeheight_u < this->alpha) && (treeheight_v < this->alpha)) {
 
        //BOOST_LOG_TRIVIAL(debug) << "Both trees are below the min height. Merging.";
        // the TO kmer's (v) tree is left alone
@@ -744,6 +743,26 @@ public:
        this->fo.setNode(hashU, false, l);
 
        //BOOST_LOG_TRIVIAL(debug) << "Merged trees.";
+    }
+    else if ((treeheight_u < this->alpha) && (height_v < this->alpha)) {
+
+       // only u is too short
+       // v is at a short enough height that we can just merge u into v
+       reverseEdgesToRoot(u);
+       this->fo.unstoreNode(root_u_hash);
+       Letter l (outIndex);
+       this->fo.setNode(hashU, false, l);
+
+    }
+    else if ((treeheight_v < this->alpha) && (height_u < this->alpha)) {
+
+       // only v is too short
+       // u is at a short enough height that we can just merge v into u
+       reverseEdgesToRoot(v);
+       this->fo.unstoreNode(root_v_hash);
+       Letter l (inIndex);
+       this->fo.setNode(hashV, true, l);
+
     }
     else {
         //BOOST_LOG_TRIVIAL(debug) << "Both trees were at least the minimum height. No merging.";
@@ -1166,7 +1185,9 @@ public:
   /**
    * Get the root in the forest that this node goes to
    */
-  void getRoot(kmer_t node, kmer_t& root, u_int64_t& root_hash) {
+  unsigned getRoot(kmer_t node, kmer_t& root, u_int64_t& root_hash) {
+
+    unsigned node_height = 0;
 
     u_int64_t kr = f.generate_KRHash_val_mod(node, this->k);
     u_int64_t hash = f.perfect_from_KR_mod(kr);
@@ -1179,7 +1200,7 @@ public:
       //BOOST_LOG_TRIVIAL(debug) << "Root is " << node;
       root = node;
       root_hash = hash;
-      return;
+      return node_height;
     } 
 
     // Keep getting parent until we've found a root
@@ -1193,12 +1214,14 @@ public:
        node = parent;
        //BOOST_LOG_TRIVIAL(debug) << "Now our node is " << node;
        kr = parent_kr;
+       node_height++;
     }
 
     //BOOST_LOG_TRIVIAL(debug) << "Root is " << node;
     root = node;
     root_hash = hash;
 
+    return node_height;
   }
 
   /**
