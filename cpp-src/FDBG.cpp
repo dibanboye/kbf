@@ -772,6 +772,27 @@ public:
     return true;
   }
 
+   /*
+    * removalUpdateForest
+    * An edge has been removed between a child and parent
+    * in one of the forest's trees 
+    * This function performs the necessary changes to the forest
+    * in an attempt to maintain tree height bounds
+    *
+    * This is a utility function for dynamicRemoveEdge
+    */
+   void removalUpdateForest( const kmer_t& child, const uint64_t& child_hash,
+			     const kmer_t& parent, const uint64_t& parent_hash ) {
+      //the child's subtree is without a root
+      //temporarily, make it the root of its subtree
+      fo.storeNode( child_hash, child );
+
+      //get the heights of the two new trees
+      
+   }
+   
+
+   
   /*
    * Remove an edge from the data structure.
    * From u to v
@@ -810,8 +831,6 @@ public:
     }
     
     //making it this far means that an edge can be removed between them
-    //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
-    //if edge was already present, quit
     u_int64_t hashU = f( u );
     u_int64_t hashV = f( v );
     unsigned outIndex = access_kmer( v, k, k - 1 );
@@ -829,15 +848,11 @@ public:
     // Now, need to update the forest if it includes this edge
     if ((!this->fo.isStored(hashU)) && (this->fo.getNext(hashU, u, this->k) == v)) {
        // u's parent is v
-       // u is now made root of its subtree
-       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(u, this->k) << " is now root of its subtree.";
-       this->fo.storeNode(hashU, u);
+       removalUpdateForest( u, hashU, v, hashV );
     }
     else if ((!this->fo.isStored(hashV)) && (this->fo.getNext(hashV, v, this->k) == u)) {
        // v's parent is u
-       // v is now made root of its subtree
-       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(v, this->k) << " is now root of its subtree.";
-       this->fo.storeNode(hashV, v);
+       removalUpdateForest( v, hashV, u, hashU );
     }
     else {
        // this edge is not in the forest
@@ -1316,6 +1331,8 @@ public:
      return getTreeHeightRoot(root);
   }
 
+  
+   
   /**
    * Same as above, but it is assumed that the input node is the root of the tree
    */
