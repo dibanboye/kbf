@@ -203,7 +203,7 @@ class generate_hash {
 
       //Having problem with overflows because of large primes
       //Even though the theoretical bound is above, let's try smaller ones.
-      double smallerPrime = n_kmer*n_kmer / 5.0;
+      double smallerPrime = n_kmer*n_kmer ;
       Prime = getPrime((u_int64_t) smallerPrime );
 
       BOOST_LOG_TRIVIAL(info) << "Trying prime: " << Prime;
