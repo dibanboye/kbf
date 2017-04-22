@@ -180,7 +180,7 @@ vector<string> parseFasta(string const & path) {
 ////////////////////////////////////////////////////////////////
 unordered_set<kmer_t> getKmers(vector<string> & reads, const int K) {
     unordered_set<kmer_t> kmers;
-    for (auto r : reads) {
+     for (auto r : reads) {
 
         if (r.size() < K) continue;
         for (int i = 0; i < r.size() - K + 1; i++) {

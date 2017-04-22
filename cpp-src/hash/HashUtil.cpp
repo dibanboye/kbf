@@ -2,7 +2,12 @@
 #define HASH_UTIL
 
 #include <ctime>
-#include "../KBFUtil.hpp"
+#include <iostream>
+#include "../formatutil.cpp"
+
+using namespace std;
+typedef uint64_t kmer_t;
+
 template <typename T>
 T getPrime(T);
 template <typename T>
@@ -125,47 +130,6 @@ short baseNum(char base) {
 
    return -1;
 }
-
-unsigned access_kmer( kmer_t mer, unsigned k, unsigned i ) {
-  mer = mer >> 2*(k - i - 1);
-  kmer_t mask = static_cast<kmer_t>(3);
-  mer = mask & mer;
-  return static_cast<unsigned>(mer); 
-}
-
-void print_kmer( kmer_t mer, unsigned k,ostream& os) {
-
-  os << get_kmer_str(mer, k);
-
-}
-
-string get_kmer_str( kmer_t mer, unsigned k) {
-
-  string kmer_str = "";
-
-  for (unsigned i = 0; i < k; ++i) {
-
-    unsigned kk = access_kmer( mer, k, i );
-
-    switch( kk ) {
-      case 0:
-        kmer_str += 'A';
-        break;
-      case 1:
-        kmer_str += 'C';
-        break;
-      case 2:
-        kmer_str += 'G';
-        break;
-      case 3:
-        kmer_str += 'T';
-        break;
-    }
-  }
-
-  return kmer_str;
-}
-
 
 // Only Alan knows why this is here
 #endif

@@ -9,11 +9,8 @@
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
 #include <chrono>
-#include "proc_size.cpp"
-
 #include "FDBG.cpp"
 #include "formatutil.cpp"
-#include "KBFUtil.hpp"
 #include "TestUtil.cpp"
 
 using namespace std;
