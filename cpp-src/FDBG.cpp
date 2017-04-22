@@ -19,8 +19,8 @@ void push_last_letter(const kmer_t&, kmer_t&);
 void remove_front_letter(const kmer_t&, kmer_t&, const unsigned&);
 void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c );
 void set_kmer( kmer_t& mer, unsigned k, unsigned i, char c );
-kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned);
-kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned);
+kmer_t pushOnFront(const kmer_t& orig, Letter& letter, unsigned);
+kmer_t pushOnBack(const kmer_t& orig, Letter& letter, unsigned);
 
 // Representation of A, C, G, and T in bits 00, 01, 10, 11
 class Letter {
@@ -161,19 +161,70 @@ class Forest {
 
     }
 
+    /**
+     * Set the letter of the ith node
+     */
+    void setLetter(const u_int64_t& i, const Letter& l) {
+
+       u_int64_t index = this->nodeIndex(i);
+
+       this->bitarray.set(index + 2, l.bits[0]);
+       this->bitarray.set(index + 3, l.bits[1]);
+
+    }
+
+    /**
+     * Get the letter to the parent of the ith node in the form of an unsigned
+     */
+    unsigned getLetter(const u_int64_t& i) {
+
+       unsigned l;
+
+       u_int64_t index = this->nodeIndex(i);
+
+       l += 2*this->bitarray.get(index + 2);
+       l += this->bitarray.get(index + 3);
+
+       return l;
+    }
+
     // Return index in data of the beginning of the ith node
-    u_int64_t nodeIndex(u_int64_t i) {
+    u_int64_t nodeIndex(const u_int64_t& i) {
       return 4*i;
+    }
+
+    /**
+     * Get the data for the ith node, put in data vector
+     */
+    void getNodeData(const u_int64_t& i, vector<bool>& data) {
+
+       u_int64_t index = nodeIndex(i);
+
+       data.push_back(this->bitarray.get(index));
+       data.push_back(this->bitarray.get(index + 1));
+       data.push_back(this->bitarray.get(index + 2));
+       data.push_back(this->bitarray.get(index + 3));
+
     }
 
     /**
      * Store the kmer of the ith node
      */
-    void storeNode(u_int64_t i, kmer_t str) {
+    void storeNode(const u_int64_t& i, const kmer_t& str) {
 
        this->roots[i] = str;
 
        this->bitarray.set(nodeIndex(i), true);
+    }
+
+    /**
+     * Unstore the kmer of the ith node
+     */
+    void unstoreNode(const u_int64_t& i) {
+
+       this->roots.erase(i);
+
+       this->bitarray.set(nodeIndex(i), false);
     }
 
     // Returns whether the ith node is stored
@@ -186,9 +237,14 @@ class Forest {
        return this->bitarray.get(nodeIndex(i) + 1);
     }
 
+    // Set whether the ith node has IN
+    bool set_parent_in_IN(const u_int64_t& i, bool in) {
+       this->bitarray.set(nodeIndex(i) + 1, in);
+    }
+
     // Deduce the parent of the ith node's kmer given the ith node's
     // kmer mer and the length of the kmers k
-    kmer_t getNext(u_int64_t i, kmer_t& mer, unsigned k) {
+    kmer_t getNext(u_int64_t i, const kmer_t& mer, unsigned k) {
 
       u_int64_t index = nodeIndex(i);
       Letter l (this->bitarray.get(index + 2), this->bitarray.get(index + 3));
@@ -408,7 +464,7 @@ public:
     //add edges to IN and OUT
     BOOST_LOG_TRIVIAL(info) << "Adding edges to IN and OUT ...";
 
-    add_edges( edgemers);
+    add_edges(edgemers);
 
     //For debugging, print IN and OUT given kmers
     //printINandOUT(kmers);
@@ -418,8 +474,6 @@ public:
 
     //cout << "SIZE: " << this->fo.roots.size() << endl;
 
-    //printHashFunction(kmers);
-    //printForest();
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end-start;
     construction_time = elapsed_seconds.count();
@@ -440,7 +494,7 @@ public:
   /**
    * Add edges to IN and OUT using K+1-mers
    */
-  void add_edges( unordered_set<kmer_t>& edges) {
+  void add_edges(unordered_set<kmer_t>& edges) {
 
     unordered_set<kmer_t>::iterator i;
     for (i = edges.begin(); i!= edges.end(); ++i) {
@@ -467,12 +521,11 @@ public:
     u_int64_t hash_v = f(v);
 
     if (hash_u >= this->n) {
-      BOOST_LOG_TRIVIAL(error) << "Edge " << get_kmer_str(edge, this->k + 1)
+      BOOST_LOG_TRIVIAL(error) << "ERROR: Edge " << get_kmer_str(edge, this->k + 1)
         <<  " has produced kmer "
         << get_kmer_str(u, this->k)
         << "("<< u << ")"
-        << " with invalid hash function value "
-        << hash_u;
+        << " with invalid hash function value.";
     }
 
     if (hash_v >= this->n) {
@@ -480,13 +533,12 @@ public:
         <<  " has produced kmer "
         << get_kmer_str(v, this->k)
         << "("<< v << ")"
-        << " with invalid hash function value "
-        << hash_v;
+        << " with invalid hash function value.";
     }
 
     this->OUT.set(hash_u, last, true);
     this->IN.set(hash_v, first, true);
-    
+ 
   }
 
   // Take a k+1-mer and split into beginning and end k-mers
@@ -499,21 +551,131 @@ public:
 
   }
 
+  /**
+   * Computes the average tree height and how many are above/below max/min
+   */
+  void getTreeData(unsigned& num_trees, double& avg_height,
+     unsigned& num_above, unsigned& num_below) {
+
+     num_trees = this->fo.roots.size();
+
+     avg_height = 0;
+     num_above = 0;
+     num_below = 0;
+     double weight = 1.0/(this->fo.roots.size());
+
+     //BOOST_LOG_TRIVIAL(debug) << "There are " << this->fo.roots.size()
+     //   << " trees and so the weight is " << weight;
+
+     //BOOST_LOG_TRIVIAL(debug) << "Trees should have heights between "
+     //   << this->alpha << " and " << 3*this->alpha;
+
+     unsigned height;
+     kmer_t root;
+
+     // go through each tree
+
+     map<u_int64_t, kmer_t>::iterator iter;
+     for (iter = this->fo.roots.begin(); iter != this->fo.roots.end(); ++iter) {
+
+        root = iter->second;
+
+        //BOOST_LOG_TRIVIAL(debug) << "Looking at tree with root "
+        //   << get_kmer_str(root, this->k);
+
+        height = getTreeHeightRoot(root);
+
+        avg_height += (height*weight);
+
+        if (height < this->alpha) {
+           num_below++;
+        }
+        else if (height > 3*this->alpha + 1) {
+           num_above++;
+        }
+
+     }
+
+  }
+
+
+  /**
+   * Given a node, get the other nodes for all edges
+   * that don't exist. For example, if we have ATTC and there
+   * does not exist an edge ATTCA, we return TTCA. The nodes may or
+   * may not exist in the graph.
+   * This is for generating random edges.
+   */
+  void getNonExistentEdges(const kmer_t& node, vector<kmer_t>& not_neighbors_in,
+     vector<kmer_t>& not_neighbors_out) {
+
+     not_neighbors_in.clear();
+     not_neighbors_out.clear();
+
+     u_int64_t hash = this->f(node);
+
+     Letter l;
+     kmer_t neighbor;
+     for (unsigned i = 0; i < 4; i++) {
+
+        if (this->IN.get(hash,i) == 0) {
+           l = Letter (i);
+           neighbor = pushOnFront(node, l, this->k);
+           //BOOST_LOG_TRIVIAL(debug) << "Non existent edge from "
+           //   << get_kmer_str(neighbor, this->k);
+           not_neighbors_in.push_back(neighbor);
+        }
+
+        if (this->OUT.get(hash,i) == 0) {
+           l = Letter (i);
+           neighbor = pushOnBack(node, l, this->k);
+           //BOOST_LOG_TRIVIAL(debug) << "Non existent edge to "
+           //   << get_kmer_str(neighbor, this->k);
+           not_neighbors_out.push_back(neighbor);
+        }
+
+     }
+
+  }
+
   /*
    * Add an edge dynamically to the data structure.
    * From u to v
    * Updates the forest dynamically.
    * Nothing happens if the k-mers aren't compatible.
+   * Returns bool of whether an edge is actually added or not
    */
-  void dynamicAddEdge( const kmer_t& u, const kmer_t& v ) {
+  bool dynamicAddEdge( const kmer_t& u, const kmer_t& v ) {
+
+    //BOOST_LOG_TRIVIAL(debug) << "Adding an edge from " << get_kmer_str(u, this->k)
+    //   << " to " << get_kmer_str(v, this->k) << "...";
+
     //check if u, v are compatible
     unsigned ui, vi;
-    for (unsigned i = 0; i < (k - 1); ++i) {
-      ui = access_kmer( u, k, i + 1 );
-      vi = access_kmer( v, k, i );
-      if (ui != vi)
-	return;
+    for (unsigned i = 0; i < (this->k - 1); ++i) {
+      ui = access_kmer( u, this->k, i + 1 );
+      vi = access_kmer( v, this->k, i );
+      //BOOST_LOG_TRIVIAL(debug) << "Checking the " << (i+1) << "/" << i << " spots";
+      if (ui != vi) {
+        //BOOST_LOG_TRIVIAL(debug) << "Cannot add an edge because there is not "
+        //   << " k-1 length overlap.";
+	return false;
+      }
     }
+
+    // For testing
+    //if (!detect_membership(u)) {
+       //BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(u, this->k)
+       //   << " is not in the graph.";
+    //   return false;
+    //}
+
+    //if (!detect_membership(v)) {
+       //BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(v, this->k)
+       //   << " is not in the graph.";
+    //   return false;
+    //}
+    
 
     //making it this far means that an edge can be added between them
     //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
@@ -522,20 +684,324 @@ public:
     u_int64_t hashV = f( v );
     unsigned outIndex = access_kmer( v, k, k - 1 );
     unsigned inIndex = access_kmer( u, k, 0 );
-    if ( OUT.get(hashU, outIndex) )
-      return; // edge already exists
+    if ( OUT.get(hashU, outIndex) ) {
+      BOOST_LOG_TRIVIAL(debug) << "This edge already exists";
+      return false; // edge already exists
+    }
 
     //making it here means that edge is compatible and edge is not already in graph
     //So: begin logic for adding edge
     OUT.set(hashU, outIndex, true);
     IN.set(hashV, inIndex, true);
 
-    //Now, need to update the forest
-    //TODO
+    // Now, need to update the forest
+    // Basically, there is the potential to merge too small trees
 
-    return;
+    //BOOST_LOG_TRIVIAL(debug) << "Finding the trees that these two edges are in ...";
+
+    // Find the heights of the trees these two are in, and their roots
+    kmer_t root_u;
+    u_int64_t root_u_hash;
+    unsigned height_u = getRoot(u, root_u, root_u_hash);
+    kmer_t root_v;
+    u_int64_t root_v_hash;
+    unsigned height_v = getRoot(v, root_v, root_v_hash);
+
+    //BOOST_LOG_TRIVIAL(debug) << "root " << get_kmer_str(root_u, this->k)
+    //   << " and root " << get_kmer_str(root_v, this->k);
+
+
+    unsigned treeheight_u = getTreeHeightRoot(root_u);
+    unsigned treeheight_v = getTreeHeightRoot(root_v);
+
+    //BOOST_LOG_TRIVIAL(debug) << "One is in a tree of height " << height_u
+    //   << " with root " << get_kmer_str(root_u, this->k)
+    //   << " and the other a tree of height " << height_v
+    //   << " with root " << get_kmer_str(root_v, this->k);
+
+    if (root_u == root_v) {
+       // No trees to merge
+       //BOOST_LOG_TRIVIAL(debug) << "Both trees already have the same root. No merging.";
+       return true;
+    }
+
+    // Both trees are too small. Merge them.
+    if ((treeheight_u < this->alpha) && (treeheight_v < this->alpha)) {
+
+       //BOOST_LOG_TRIVIAL(debug) << "Both trees are below the min height. Merging.";
+       // the TO kmer's (v) tree is left alone
+       // the FROM kmer's tree is added to the TO kmer's tree
+       // by reversing all edges from the FROM kmer to its root
+       reverseEdgesToRoot(u);
+
+       // the root of the FROM kmer is unstored
+       this->fo.unstoreNode(root_u_hash);
+
+       // Add forest edge from u to v
+       // u's parent is switched
+       Letter l (outIndex);
+       this->fo.setNode(hashU, false, l);
+
+       //BOOST_LOG_TRIVIAL(debug) << "Merged trees.";
+    }
+    else if ((treeheight_u < this->alpha) && (height_v < this->alpha)) {
+
+       // only u is too short
+       // v is at a short enough height that we can just merge u into v
+       reverseEdgesToRoot(u);
+       this->fo.unstoreNode(root_u_hash);
+       Letter l (outIndex);
+       this->fo.setNode(hashU, false, l);
+
+    }
+    else if ((treeheight_v < this->alpha) && (height_u < this->alpha)) {
+
+       // only v is too short
+       // u is at a short enough height that we can just merge v into u
+       reverseEdgesToRoot(v);
+       this->fo.unstoreNode(root_v_hash);
+       Letter l (inIndex);
+       this->fo.setNode(hashV, true, l);
+
+    }
+    else {
+        //BOOST_LOG_TRIVIAL(debug) << "Both trees were at least the minimum height. No merging.";
+    }
+
+    return true;
   }
+
+  /*
+   * Remove an edge from the data structure.
+   * From u to v
+   * Updates the forest.
+   * Returns bool of whether an edge is actually deleted or not
+   */
+  bool dynamicRemoveEdge( const kmer_t& u, const kmer_t& v ) {
+
+    //BOOST_LOG_TRIVIAL(debug) << "Deleting an edge from " << get_kmer_str(u, this->k)
+    //   << " to " << get_kmer_str(v, this->k) << "...";
+
+    //check if u, v are compatible
+    unsigned ui, vi;
+    for (unsigned i = 0; i < (this->k - 1); ++i) {
+      ui = access_kmer( u, this->k, i + 1 );
+      vi = access_kmer( v, this->k, i );
+      //BOOST_LOG_TRIVIAL(debug) << "Checking the " << (i+1) << "/" << i << " spots";
+      if (ui != vi) {
+        //BOOST_LOG_TRIVIAL(debug) << "Cannot add an edge because there is not "
+        //   << " k-1 length overlap.";
+	return false;
+      }
+    }
+
+    // For testing
+    if (!detect_membership(u)) {
+       BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(u, this->k)
+          << " is not in the graph.";
+       return false;
+    }
+
+    if (!detect_membership(v)) {
+       BOOST_LOG_TRIVIAL(debug) << "The node " << get_kmer_str(v, this->k)
+          << " is not in the graph.";
+       return false;
+    }
+    
+    //making it this far means that an edge can be removed between them
+    //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
+    //if edge was already present, quit
+    u_int64_t hashU = f( u );
+    u_int64_t hashV = f( v );
+    unsigned outIndex = access_kmer( v, k, k - 1 );
+    unsigned inIndex = access_kmer( u, k, 0 );
+
+    if ( !OUT.get(hashU, outIndex) ) {
+      BOOST_LOG_TRIVIAL(debug) << "This edge doesn't exist.";
+      return false; // edge doesn't exist
+    }
+
+    // Remove this edge from IN and OUT
+    OUT.set(hashU, outIndex, false);
+    IN.set(hashV, inIndex, false);
+
+    // Now, need to update the forest if it includes this edge
+    if ((!this->fo.isStored(hashU)) && (this->fo.getNext(hashU, u, this->k) == v)) {
+       // u's parent is v
+       // u is now made root of its subtree
+       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(u, this->k) << " is now root of its subtree.";
+       this->fo.storeNode(hashU, u);
+    }
+    else if ((!this->fo.isStored(hashV)) && (this->fo.getNext(hashV, v, this->k) == u)) {
+       // v's parent is u
+       // v is now made root of its subtree
+       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(v, this->k) << " is now root of its subtree.";
+       this->fo.storeNode(hashV, v);
+    }
+    else {
+       // this edge is not in the forest
+    } 
+
+    return true;
+  }
+
   
+
+  /**
+   * Reverse all forest edges along the path from node to its root
+   * Used for combining two trees
+   */
+  void reverseEdgesToRoot(kmer_t node) {
+
+     //BOOST_LOG_TRIVIAL(debug) << "Reversing edges to root of node "
+     //   << get_kmer_str(node, this->k);
+
+     u_int64_t node_kr = this->f.generate_KRHash_val_mod(node, this->k);
+     u_int64_t node_hash = f.perfect_from_KR_mod(node_kr);
+
+     // we are already at the root, nothing to store
+     if (this->fo.isStored(node_hash)) {
+        //BOOST_LOG_TRIVIAL(debug) << "That node is a root. Nothing to reverse.";
+        return;
+     }
+
+     // Get all parent data
+     kmer_t parent;
+     u_int64_t parent_kr, parent_hash;
+     getParentInfo(node, node_kr, node_hash, parent, parent_kr, parent_hash);
+     // Whether forest edges are via IN or OUT
+     bool in = this->fo.parent_in_IN(node_hash);
+     bool parent_in;
+
+     // Need to save this to move forward after we've changed link to parent
+     kmer_t grandparent;
+     u_int64_t grandparent_kr, grandparent_hash;
+
+     // Keep reversing edges until we get to the last one
+     while (!this->fo.isStored(parent_hash)) {
+
+        //BOOST_LOG_TRIVIAL(debug) << "Looking at edge between " <<
+        //   get_kmer_str(node, this->k) << " and " << get_kmer_str(parent, this->k);
+
+        // Save links to the next place on the tree
+        getParentInfo(parent, parent_kr, parent_hash, grandparent,
+           grandparent_kr, grandparent_hash);
+
+        // Need to save how to get from parent to grandparent, since forest
+        // edge will be removed
+        parent_in = this->fo.parent_in_IN(parent_hash);
+
+        //BOOST_LOG_TRIVIAL(debug) << grandparent_hash;
+        // Reverse the edge between node and its parent
+        flipEdge(parent_hash, node_hash, node, in);
+
+        // move forward
+        node = parent;
+        node_kr = parent_kr;
+        node_hash = parent_hash;
+        parent = grandparent;
+        parent_kr = grandparent_kr;
+        parent_hash = grandparent_hash;
+        in = parent_in;
+
+     }
+
+     // Last edge going to root
+     flipEdge(parent_hash, node_hash, node, in);
+
+  }
+
+
+  /**
+   * Add a forest edge from node to new_parent.
+   * "in" gives whether you can get from new_parent
+   * to node via IN or not.
+   * So this can be used to "flip" a forest edge, although it doesn't
+   * assume that that edge is currently in the forest (since "in" is
+   * passed in, where
+   * the child was once new_parent, and the parent was once node.
+   */
+  void flipEdge(const u_int64_t& node_hash, const u_int64_t& new_parent_hash,
+     const kmer_t& new_parent_kmer, bool in) {
+
+     //BOOST_LOG_TRIVIAL(debug) << "Switching parent of "
+     //   << node_hash
+     //   << " to parent " << get_kmer_str(new_parent_kmer, this->k);
+
+     // If the child went to parent via OUT, then the parent will get to
+     // the child from IN, etc.
+     this->fo.set_parent_in_IN(node_hash, !in);
+
+     //BOOST_LOG_TRIVIAL(debug) << "Node " << node_hash
+     //   << " reaches its parent via IN? " << this->fo.parent_in_IN(node_hash);
+
+     Letter l;
+     if (in) {
+        // Need the last letter of the new_parent
+        l = access_kmer(new_parent_kmer, this->k, this->k - 1);
+        this->fo.setLetter(node_hash, l);
+     }
+     else {
+        // Need the first letter of the new_parent
+        l = access_kmer(new_parent_kmer, this->k, 0);
+        this->fo.setLetter(node_hash, l);
+
+     }
+
+     //BOOST_LOG_TRIVIAL(debug) << "By what letter? " << this->fo.getLetter(node_hash);
+
+
+   }
+
+
+  /**
+   * Get parent info from child info
+   */
+  void getParentInfo(const kmer_t& node, const u_int64_t& node_kr, const u_int64_t& node_hash,
+                     kmer_t& parent, u_int64_t& parent_kr, u_int64_t& parent_hash) {
+
+      //BOOST_LOG_TRIVIAL(debug) << "Getting info for the parent of "
+      //   << get_kmer_str(node, this->k);
+
+      parent = this->fo.getNext(node_hash, node, this->k);
+
+      //BOOST_LOG_TRIVIAL(debug) << "That's parent " << get_kmer_str(parent, this->k);
+
+      // The front and back letters of the edge between node and parent
+      // used to compute hash values of parent
+      unsigned front, back;
+
+      // Get data depending on how we access parent
+      if (this->fo.parent_in_IN(node_hash)) {
+
+         // We got it in IN, so the edge goes from parent to node
+        unsigned back = access_kmer(node, this->k, this->k - 1);
+	unsigned front = access_kmer( parent, this->k, 0 );
+
+	parent_kr = f.update_KRHash_val_IN_mod(node_kr, front, back);
+
+	parent_hash = f.perfect_from_KR_mod(parent_kr);
+
+        //BOOST_LOG_TRIVIAL(debug) << "This edge starts with letter "
+        //   << front << " and ends with letter " << back;
+        //BOOST_LOG_TRIVIAL(debug) << "It has hash value " << parent_hash;
+
+      } else {
+         // We got it in OUT, so the edge goes from node to parent
+
+        unsigned front = access_kmer(node, this->k, 0);
+	unsigned back = access_kmer(parent, this->k, this->k - 1 );
+
+        //BOOST_LOG_TRIVIAL(debug) << "This edge starts with letter "
+        //   << front << " and ends with letter " << back;
+
+	parent_kr = f.update_KRHash_val_OUT_mod(node_kr, front, back);
+	parent_hash = f.perfect_from_KR_mod(parent_kr);
+        //BOOST_LOG_TRIVIAL(debug) << "It has hash value " << parent_hash;
+      }
+
+
+  }
 
 
   void print_matrix( vector< vector< bool > >& mat, ostream& os = cout ) {
@@ -656,6 +1122,256 @@ public:
     else
       return false;
   }
+
+  // Set the parent's kmer given the child's kmer
+  kmer_t getParent(const kmer_t& m) {
+
+     kmer_t parent_kr = 0;
+     u_int64_t m_kr = f.generate_KRHash_val_mod( m, this->k );
+     kmer_t parent_kmer;
+
+     getParent(m, m_kr, parent_kmer, parent_kr);
+
+     return parent_kmer;
+
+     //BOOST_LOG_TRIVIAL(debug) << "The parent's hash value is " << f.perfect_from_KR_mod(parent_kr);
+  }
+
+
+  // Set the parent's kmer, and karp-rabin value 
+  // given the child's kmer and krval
+  void getParent(const kmer_t& m, const u_int64_t& kr_val,
+     kmer_t& parent_kmer, u_int64_t& parent_kr) {
+
+     //BOOST_LOG_TRIVIAL(debug) << "Finding parent data for kmer "
+     //   << get_kmer_str(m, this->k);
+
+     // Get the hash value of m
+     u_int64_t hash = f.perfect_from_KR_mod( kr_val );
+     //BOOST_LOG_TRIVIAL(debug) << "The hash value was found to be " << hash; 
+
+     // whether we get to the parent via IN
+     bool in  = this->fo.parent_in_IN(hash);
+
+     unsigned letter; // what letter m has but its parent doesn't
+
+     if (in) {	//the parent is an IN-neighbor of m
+	//the parent is an IN-neighbor of m
+	//so we need m's last character
+	letter = access_kmer( m, this->k, this->k - 1 );
+     } else {
+	//the parent is an OUT-neighbor of m
+	//so we need m's first character
+	letter = access_kmer( m, this->k, 0 );
+     }
+
+     //BOOST_LOG_TRIVIAL(debug) << "Reached via IN? " << in << ". What letter? " << letter;
+
+     // deduce the parent's kmer
+     parent_kmer = this->fo.getNext(hash, m, k);
+
+
+     //BOOST_LOG_TRIVIAL(debug) << "The parent's kmer is " << get_kmer_str(parent_kmer, this->k);
+
+     if (in) {
+	unsigned letter_front_parent = access_kmer( parent_kmer, k, 0 );
+	parent_kr = f.update_KRHash_val_IN_mod( kr_val, letter_front_parent, letter );
+     } else {
+	unsigned letter_back_parent = access_kmer( parent_kmer, k, k - 1 );
+	parent_kr = f.update_KRHash_val_OUT_mod( kr_val, letter, letter_back_parent );
+     }
+  }
+
+  /**
+   * Get the root in the forest that this node goes to
+   */
+  unsigned getRoot(kmer_t node, kmer_t& root, u_int64_t& root_hash) {
+
+    unsigned node_height = 0;
+
+    u_int64_t kr = f.generate_KRHash_val_mod(node, this->k);
+    u_int64_t hash = f.perfect_from_KR_mod(kr);
+    u_int64_t parent;
+    u_int64_t parent_kr;
+
+    //BOOST_LOG_TRIVIAL(debug) << "Finding the root of " << node;
+
+    if (this->fo.isStored(hash)) {
+      //BOOST_LOG_TRIVIAL(debug) << "Root is " << node;
+      root = node;
+      root_hash = hash;
+      return node_height;
+    } 
+
+    // Keep getting parent until we've found a root
+    while (!this->fo.isStored(hash)) {
+
+       getParent(node, kr, parent, parent_kr);
+       //BOOST_LOG_TRIVIAL(debug) << "Moved to parent " << parent;
+       //BOOST_LOG_TRIVIAL(debug) << "With kr val " << parent_kr;
+       hash = f.perfect_from_KR_mod(parent_kr);
+       //BOOST_LOG_TRIVIAL(debug) << "Hash value " << hash;
+       node = parent;
+       //BOOST_LOG_TRIVIAL(debug) << "Now our node is " << node;
+       kr = parent_kr;
+       node_height++;
+    }
+
+    //BOOST_LOG_TRIVIAL(debug) << "Root is " << node;
+    root = node;
+    root_hash = hash;
+
+    return node_height;
+  }
+
+  /**
+   * Given a node, get all of its children in the forest
+   */
+  void getChildren(const kmer_t& node, vector<kmer_t>& children) {
+
+     children.clear();
+
+     // get KR value to make getting neighbor hash values easier
+     u_int64_t node_kr = f.generate_KRHash_val_mod(node, this->k);
+
+     vector<kmer_t> neighbors;
+     vector<bool> inorout;
+     //BOOST_LOG_TRIVIAL(debug) << "Getting children of "
+     //  << get_kmer_str(node, this->k);
+
+     // get all neighbors
+     get_neighbors(node, neighbors, inorout);
+
+     //BOOST_LOG_TRIVIAL(debug) << "Found neighbors: ";
+     //for (int i = 0; i < neighbors.size(); i++) {
+     //  BOOST_LOG_TRIVIAL(debug) << " " << neighbors[i];
+     //}
+     
+     // for each edge, the first and last characters
+     unsigned first, last;
+     unsigned node_first = access_kmer(node, this->k, 0);
+     unsigned node_last = access_kmer(node, this->k, k-1);
+     u_int64_t neighbor_hash;
+     kmer_t parent; // holds the parent of a neighbor for comparison
+
+     // get the hash values for each neighbor, check if node is their parent in forest
+     for (int i = 0; i < neighbors.size(); i++) {
+
+       if (inorout[i] == 1) {
+         // this neighbor has an edge going towards node
+         // so we need its first letter, node's last
+         first = access_kmer(neighbors[i], this->k, 0);
+         neighbor_hash = f.perfect_from_KR_mod(f.update_KRHash_val_IN_mod(node_kr,
+           first, node_last));
+         //BOOST_LOG_TRIVIAL(debug) << "The hash for neighbor "
+         //  << get_kmer_str(neighbors[i], this->k)
+         //  << " is " << child_hash;
+
+       }
+       else {
+         // this neighbor has an edge from node towards it
+         // so we need its last letter, node's first
+         last = access_kmer(neighbors[i], this->k, k-1);
+         neighbor_hash = f.perfect_from_KR_mod(f.update_KRHash_val_OUT_mod(node_kr,
+           node_first, last));
+        // BOOST_LOG_TRIVIAL(debug) << "The hash for neighbor "
+        //   << get_kmer_str(neighbors[i], this->k)
+        //   << " is " << child_hash;
+       }
+
+       //BOOST_LOG_TRIVIAL(debug) << "That child's parent is " <<
+       //  get_kmer_str(this->fo.getNext(child_hash, neighbors[i], this->k), this->k);
+
+       // Get the parent of this neighbor
+       parent = this->fo.getNext(neighbor_hash, neighbors[i], this->k);
+
+       // this node is its parent, and it is not a root
+       if ((node == parent) && !(this->fo.isStored(neighbor_hash))) {
+         // this is a child in the forest
+         children.push_back(neighbors[i]);
+         //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(neighbors[i], this->k)
+         //  << " is a child";
+       }
+
+       
+     }
+  
+
+  }
+
+  /**
+   * Given a kmer, find the height of the tree that node is in in the forest
+   */
+  unsigned getTreeHeight(const kmer_t& node) {
+
+     //BOOST_LOG_TRIVIAL(debug) << "Getting the height of tree with node "
+     //   << get_kmer_str(node, this->k);
+
+     // get the root of this tree
+     kmer_t root;
+     u_int64_t root_hash;
+     getRoot(node, root, root_hash);
+
+     return getTreeHeightRoot(root);
+  }
+
+  /**
+   * Same as above, but it is assumed that the input node is the root of the tree
+   */
+  unsigned getTreeHeightRoot(const kmer_t& root) {
+
+     //BOOST_LOG_TRIVIAL(debug) << "The root of this tree is node "
+     //  << get_kmer_str(root, this->k);
+
+     // keep descending down the tree by getting children until
+     // there doesn't exist anymore. Count how many times this
+     // must happen
+
+     vector<kmer_t> children;
+     getChildren(root, children);
+
+     vector<kmer_t> children_children; // the children of the children
+     vector<kmer_t> children_node; // holds the children of a single node
+
+     unsigned height = 0;
+
+     unsigned warnings = 0;
+
+     // Until we have reached the most far node in the tree
+     while (children.size() != 0) {
+
+        // Get children of each child
+        for (int i = 0; i < children.size(); i++) {
+
+           //BOOST_LOG_TRIVIAL(debug) << "Getting the children of node "
+           //  << get_kmer_str(children[i], this->k);
+
+           // get the ith child's children
+           getChildren(children[i], children_node);
+
+           // add each one to children_children
+           for (int j = 0; j < children_node.size(); j++) {
+
+              //BOOST_LOG_TRIVIAL(debug) << "Found child "
+              //  << get_kmer_str(children_node[j], this->k);
+              children_children.push_back(children_node[j]);
+           }
+        }
+
+        children = children_children;
+        children_children.clear();
+
+        height++;
+
+        //BOOST_LOG_TRIVIAL(debug) << "There are now " << children.size() << " children";
+     }
+
+      //BOOST_LOG_TRIVIAL(debug) << "Height is determined to be " << height;
+
+      return height;
+
+  }
+
 
    // Given a kmer, decide if it is one in our graph
    // recomputes hash value at each step, so for testing purposes only
@@ -850,7 +1566,7 @@ public:
    * Given a kmer c, get all neighbor kmers (neighbor_kmers) 
    * for neighbor_kmers[ i ], v_inorout[ i ] is true if in-neighbor, false otherwise
    */
-  void get_neighbors( kmer_t& c,
+  void get_neighbors(const kmer_t& c,
 		      vector< kmer_t >& neighbor_kmers,
 		      vector< bool >& v_inorout ) {
 
@@ -890,10 +1606,10 @@ public:
     }
 
     //    BOOST_LOG_TRIVIAL(trace) << "Neighbors found: ";
-    for (unsigned i = 0; i < neighbor_kmers.size(); ++i) {
+    //for (unsigned i = 0; i < neighbor_kmers.size(); ++i) {
       //      BOOST_LOG_TRIVIAL(trace) << i << ' ' << get_kmer_str( neighbor_kmers[i], k ) << " is an "<<	v_inorout[ i ] << " neighbor.";
       
-    }
+    //}
   }
  
   void store( kmer_t mer ) {
@@ -907,6 +1623,8 @@ public:
     kmers.erase( mer );
     visited.insert( mer );
   }
+
+
 
 
   // Print IN and OUT with the Kmer strings down the side, and the characters on the top
@@ -961,22 +1679,36 @@ public:
   }
 
   // Print the forest with the Kmer strings down the side
-  void printForest() {
+  void printForest(unordered_set<kmer_t>& kmers) {
  
     cout << setw(30) << "===== FOREST =====" << endl << endl;
+
  
-    for (int i = 0; i < this->n; ++i) {
-        cout << setw(10) << i;
+    cout << setw(10) << ""; 
+    cout << setw(10) << "Parent";
+    cout << setw(10) << "Is root?" << endl;;
 
-        u_int64_t index = this->fo.nodeIndex(i);
+    unordered_set<kmer_t>::iterator i;
 
-        cout << setw(5) << this->fo.bitarray.get(index);
-        cout << setw(5) << this->fo.bitarray.get(index + 1);
-        cout << setw(5) << this->fo.bitarray.get(index + 2);
-        cout << setw(5) << this->fo.bitarray.get(index + 3);
-        cout << endl;
+    for (i = kmers.begin(); i != kmers.end(); ++i) {
+        cout << setw(10) << get_kmer_str(*i, this->k);
+
+        u_int64_t hash = this->f(*i);
+
+        if (!this->fo.isStored(hash)) {
+            // This is not a root
+           cout << setw(10) << get_kmer_str(this->fo.getNext(hash, *i, this->k), this->k);
+           cout << setw(10) << "No" << endl;
+        }
+        else {
+            // This is a root
+           cout << setw(10) << "None";
+           cout << setw(10) << "Yes" << endl;
+        }
+ 
     } 
 
+    cout << endl;
 
   }
 
@@ -1006,7 +1738,7 @@ void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c ) {
 // Push letter onto front of kmer and return kmer
 // Going backwards along an edge (the relationship comes from orig's IN).
 // For example, orig = AGCT, then it returns GAGC
-kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
+kmer_t pushOnFront(const kmer_t& orig, Letter& letter, unsigned k) {
   //  BOOST_LOG_TRIVIAL(trace) << "pushOnFront " + get_kmer_str(orig, k) << ' ' << letter.getNum();
   // Get the kmer with back pushed off orig
   kmer_t new_kmer = orig >> 2;
@@ -1019,7 +1751,7 @@ kmer_t pushOnFront(kmer_t& orig, Letter& letter, unsigned k) {
 // Push letter onto back of kmer and return kmer
 // Going forward along an edge (the relationship comes from orig's OUT).
 // For example, orig = AGCT, then it returns GAGC
-kmer_t pushOnBack(kmer_t& orig, Letter& letter, unsigned k) {
+kmer_t pushOnBack(const kmer_t& orig, Letter& letter, unsigned k) {
   //  BOOST_LOG_TRIVIAL(trace) << "pushOnBack " + get_kmer_str(orig, k) << ' ' << letter.getNum();
   // Get the kmer with front pushed off orig
   kmer_t new_kmer = orig << 2;

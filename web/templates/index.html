@@ -16,175 +16,414 @@
 	<div class="container" style="width: 50%;">
 		<div class="jumbotron">
 			<h1>Fully Dynamic de Bruijn Graph Running Demo</h1>
-			<p><p4>This demo run the examples and visualize the results. </p4></p>
-		<form action="{{ url_for('index') }}" method=post class="add-entry custom">
-			<label for="K" style="margin-top: .3cm"> <h3>K value: </h3></label>
-			<select class="selectpicker form-control" id='K' name='K'>
-				<option>5</option>
-				<option>7</option>
-				<option>10</option>
-				<option>all</option>
-			</select>
-			<label for="# of queries" style="margin-top: .3cm"><h3># of queries: </h3></label>
-			<select class="selectpicker form-control" id='query' name='query'>
-				<option selected="selected">0.1M</option>
-				<option>1M</option>
-				<option>10M</option>
-			</select>
-			
-			<label for="dataset" style="margin-top: .3cm"><h3>Dataset: </h3></label>
-			<select class="selectpicker form-control" id='dataset' name='dataset'>
-				<option>test</option>
-				<option>yeast</option>
-				<option>ecoli</option>
-			</select>
-			
-			<p style="margin-top: 1cm">
-				<button type="submit" class="btn btn-lg btn-primary">Go &raquo;</button>
-			</p>
-		</form>
+			<p><p4>This demo runs some examples and compare results. </p4></p>
+			<form action="{{ url_for('index') }}" method=post class="add-entry custom">
+				<label for="K" style="margin-top: .3cm"> <h3>K value: </h3></label>
+				<select class="selectpicker form-control" id='K' name='K'>
+					<option>20</option>
+					<option>24</option>
+					<option>27</option>
+					<option>30</option>
+					<option>all</option>
+				</select>
+				<label for="# of queries" style="margin-top: .3cm"><h3># of queries: </h3></label>
+				<select class="selectpicker form-control" id='query' name='query'>
+					<option>0.1M</option>
+					<option selected="selected" >1M</option>
+					<option>10M</option>
+				</select>
+				
+				<label for="dataset" style="margin-top: .3cm"><h3>Dataset: </h3></label>
+				<select class="selectpicker form-control" id='dataset' name='dataset'>
+					<option>test</option>
+					<option selected="selected">yeast</option>
+					<option>ecoli</option>
+				</select>
+				
+				<p style="margin-top: 1cm">
+					<button type="submit" name="submit" value="go" class="btn btn-lg btn-primary">Go &raquo;</button>
+					<button type="submit" name="submit" value="view" class="btn btn-lg btn-primary">View &raquo;</button>
+				</p>
+			</form>
 
-		<!--</form>-->
-
-		
+		</div>
+	</div>
+	
 	{%if start == 1%}
-	</div><!-- /container -->
-	<div class="container" style="width: 100%;">
-		<!-- Example row of columns -->
+			<div class="container" style="width: 50%;">
+			<!-- Example row of columns -->
+			<h2 align="center">Fully Dynamic de Bruijn Graph Info</h2>
+			<table class="table">
+				<thead>
+					<tr>
+						<th># k-mers</th>
+						<th>Size (MB)</th>
+						<th># of trees</th>
+						<th>Averaged height</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>{{kmer[1]}}</td>
+						<td>{{BF_size}}</td>
+						<td>{{tree_info[0]}}</td>
+						<td>{{tree_info[1]}}</td>
+					</tr>
+
+				</tbody>
+			</table>
+				
+			</div>
+
+			<div class="container" style="width: 60%; margin-top: 80px; margin-bottom: 80px">
+				<div class="row">
+					<div class="col-lg-4" align='center'>
+						<h5 align='center'>Population time</h5>
+						<canvas id="chart" width="300" height="300"></canvas>
+					</div>
+					<div class="col-lg-4" align='center'>
+						<h5 align='center'>Query time</h5>
+						<canvas id="chart2" width="300" height="300"></canvas>
+					</div>
+					<div class="col-lg-4" align='center'>
+						<h5 align='center'>Accuracy</h5>
+						<canvas id="chart3" width="300" height="300"></canvas>
+					</div>
+				</div>
 		
-		<div align='center'>
-				<h5 align='center'>Population time</h5>
-				<canvas id="chart" width="600" height="300"></canvas>
-		</div>
-		<hr>
-		<div align='center'>
-			<h5 align='center'>Query time</h5>
-			<canvas id="chart2" width="600" height="300"></canvas>
-		</div>
-		<hr>
-		<div align='center'>
-			<h5 align='center'>Accuracy</h5>
-			<canvas id="chart3" width="600" height="300"></canvas>
-		</div>
+			</div><!-- /container -->
 
-	</div><!-- /container -->
+
+			<div class="container" style="width: 50%;">
+			<!-- Example row of columns -->
+				<table class="table">
+					<thead>
+						<tr>
+							<th>Notations</th>
+							<th>M0</th>
+							<th>M1</th>
+							<th>M2</th>
+							<th>M3</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>Methods</td>
+							<td>{{methods[0]}}</td>
+							<td>{{methods[1]}}</td>
+							<td>{{methods[2]}}</td>
+							<td>{{methods[3]}}</td>
+						</tr>
+
+					</tbody>
+				</table>
+			</div>
 	{% endif %}
+
+	{%if start == 2%}
+		<div class="container" style="width: 50%;">
+				<!-- Example row of columns -->
+					<table class="table">
+						<thead>
+							<tr>
+								<th>Notations</th>
+								<th>M0</th>
+								<th>M1</th>
+								<th>M2</th>
+								<th>M3</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Methods</td>
+								<td>{{method1['methods'][0]}}</td>
+								<td>{{method2['methods'][0]}}</td>
+								<td>{{method3['methods'][0]}}</td>
+								<td>{{method4['methods'][0]}}</td>
+							</tr>
+
+						</tbody>
+					</table>
+				</div>
+		<div class="container" style="width: 60%;">
+				<div class="row">
+					<div class="col-lg-4" align='center'>
+						<h5 align='center'>Population time</h5>
+						<canvas id="chart" width="300" height="300"></canvas>
+					</div>
+					<div class="col-lg-4" align='center'>
+						<h5 align='center'>Query time</h5>
+						<canvas id="chart2" width="300" height="300"></canvas>
+					</div>
+					<div class="col-lg-4" align='center'>
+						<h5 align='center'>Accuracy</h5>
+						<canvas id="chart3" width="300" height="300"></canvas>
+					</div>
+				</div>
+			</div><!-- /container -->
+	{% endif %}
+
+	<!--<canvas id="xtc" width="500" height="300"></canvas>-->
 		<script>
-			var randomColorGenerator = function () {
-				return '#' + (Math.random().toString(16) + '0000000').slice(2, 8);
-			};
+			
 
-
-			var barData = {
-				datasets: [
-					{
-						data: [{% for item in populate %} "{{item}}", {% endfor %}],
-						label: 'Population time',
-						backgroundColor: [
-							// 'rgba(255, 99, 132, 0.2)',
-							'rgba(54, 162, 235, 0.5)',
-							'rgba(255, 206, 86, 0.5)',
-							'rgba(75, 192, 192, 0.5)',
-							'rgba(153, 102, 255, 0.5)',
-							'rgba(255, 159, 64, 0.5)'
-						],
-						// borderColor: [
-						// 	'rgba(0,0,0,1)',
-							
-						// ],
-
+			{% if start==2 %}
+				var options = {
+						title: {
+							display: false,
+							text: 'Population time',
+							fontSize: 30
+						},
+						legend: {
+							display: true,
+							labels: {
+								display: true
+							}
+						},
+						scales: {
+							xAxes: [{
+								ticks: {
+									fontSize: 20
+								}
+							}],
+							yAxes: [{
+								ticks: {
+									fontSize: 20
+								}
+							}]
+						},
+						responsive: false,
+				
 					}
-					
-					
-				],
-				labels: [{% for item in range(3) %} "{{item}}", {% endfor %}]
-			};			
-			var mychart = document.getElementById("chart").getContext("2d");
-
-			var options = {
-					title: {
-						display: false,
-						text: 'Population time',
-						fontSize: 30
-					},
-					legend: {
-						display: false,
-						labels: {
-							display: true
+				var ctx = document.getElementById("chart").getContext("2d");
+				var label = ['20', '24', '27', '30']
+				var lined = [{
+								type: 'line',
+								label: 'M1',
+								data: [{% for item in method1['populate'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(250,0,0,0.4)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M2',
+								data: [{% for item in method2['populate'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(75, 192, 192, 0.5)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M3',
+								data: [{% for item in method3['populate'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(153, 102, 255, 0.5)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M4',
+								data: [{% for item in method4['populate'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(255, 206, 86, 0.5)",
+								fill: false,
+							},
+						];
+				var lineData1 = {
+							labels: label,
+							datasets: lined
 						}
-					},
-					scales: {
-						xAxes: [{
-							ticks: {
-								fontSize: 20
-							}
-						}],
-						yAxes: [{
-							ticks: {
-								fontSize: 20
-							}
-						}]
-					},
-					responsive: false,
+				var myChart = new Chart(ctx, {
+					type: 'line',
+					data: lineData1,
+					options: options
+				});
+				var ctx = document.getElementById("chart2").getContext("2d");
+				var lined = [{
+								type: 'line',
+								label: 'M1',
+								data: [{% for item in method1['query'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(250,0,0,0.4)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M2',
+								data: [{% for item in method2['query'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(75, 192, 192, 0.5)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M3',
+								data: [{% for item in method3['query'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(153, 102, 255, 0.5)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M4',
+								data: [{% for item in method4['query'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(255, 206, 86, 0.5)",
+								fill: false,
+							},
+						];
+				var lineData1 = {
+							labels: label,
+							datasets: lined
+						}
+				var myChart = new Chart(ctx, {
+					type: 'line',
+					data: lineData1,
+					options: options
+				});
+				var ctx = document.getElementById("chart3").getContext("2d");
+				var lined = [{
+								type: 'line',
+								label: 'M1',
+								data: [{% for item in method1['accuracy'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(250,0,0,0.4)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M2',
+								data: [{% for item in method2['accuracy'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(75, 192, 192, 0.5)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M3',
+								data: [{% for item in method3['accuracy'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(153, 102, 255, 0.5)",
+								fill: false,
+							},
+							{
+								type: 'line',
+								label: 'M4',
+								data: [{% for item in method4['accuracy'] %} "{{item}}", {% endfor %}],
+								borderColor: "rgba(255, 206, 86, 0.5)",
+								fill: false,
+							},
+						];
+				var lineData1 = {
+							labels: label,
+							datasets: lined
+						}
+				var myChart = new Chart(ctx, {
+					type: 'line',
+					data: lineData1,
+					options: options
+				});
+				
+
+			{% endif %}
+
 			
-				}
-			new Chart(mychart, {
-				type: 'bar',
-				data: barData,
-				options: options
-			})
 
-			var barData2 = {
-				datasets: [{
-					data: [{% for item in query %} "{{item}}", {% endfor %}],
-					label: 'Query time',
-					backgroundColor: [
-							// 'rgba(255, 99, 132, 0.2)',
-							'rgba(54, 162, 235, 0.5)',
-							'rgba(255, 206, 86, 0.5)',
-							'rgba(75, 192, 192, 0.5)',
-							'rgba(153, 102, 255, 0.5)',
-							'rgba(255, 159, 64, 0.5)'
-						],
-					
-				}],
-				labels: [{% for item in range(3) %} "{{item}}", {% endfor %}]
-			};		
-			
- 
-			// get bar chart canvas
-			var mychart2 = document.getElementById("chart2").getContext("2d");
-
-			new Chart(mychart2, {
-				type: 'bar',
-				data: barData2,
-				options: options
-			})
-			var barData3 = {
-				datasets: [{
-					data: [{% for item in accuracy %} "{{item}}", {% endfor %}],
-					label: 'Accuracy',
-					backgroundColor: [
-							// 'rgba(255, 99, 132, 0.2)',
-							'rgba(54, 162, 235, 0.5)',
-							'rgba(255, 206, 86, 0.5)',
-							'rgba(75, 192, 192, 0.5)',
-							'rgba(153, 102, 255, 0.5)',
-							'rgba(255, 159, 64, 0.5)'
-						],
-					
-				}],
-				labels: [{% for item in range(3) %} "{{item}}", {% endfor %}]
-			};		
-
-			// get bar chart canvas
-			var mychart3 = document.getElementById("chart3").getContext("2d");
-
-			new Chart(mychart3, {
+			{% if start==1 %}
+				var options = {
+						title: {
+							display: false,
+							text: 'Population time',
+							fontSize: 30
+						},
+						legend: {
+							display: false,
+							labels: {
+								display: true
+							}
+						},
+						scales: {
+							xAxes: [{
+								ticks: {
+									fontSize: 20
+								}
+							}],
+							yAxes: [{
+								ticks: {
+									fontSize: 20
+								}
+							}]
+						},
+						responsive: false,
+				
+					}
+				var barData = {
+					datasets: [
+						{
+							data: [{% for item in populate %} "{{item}}", {% endfor %}],
+							label: 'Population time',
+							backgroundColor: [
+								// 'rgba(255, 99, 132, 0.2)',
+								'rgba(54, 162, 235, 0.5)',
+								'rgba(255, 206, 86, 0.5)',
+								'rgba(75, 192, 192, 0.5)',
+								'rgba(153, 102, 255, 0.5)',
+								'rgba(255, 159, 64, 0.5)'
+							],
+						}		
+					],
+					labels: [{% for item in range(4) %} "M{{item}}", {% endfor %}]
+				};			
+				var mychart = document.getElementById("chart").getContext("2d");
+				
+				new Chart(mychart, {
 					type: 'bar',
-					data: barData3,
+					data: barData,
 					options: options
 				})
+
+				var barData2 = {
+					datasets: [{
+						data: [{% for item in query %} "{{item}}", {% endfor %}],
+						label: 'Query time',
+						backgroundColor: [
+								// 'rgba(255, 99, 132, 0.2)',
+								'rgba(54, 162, 235, 0.5)',
+								'rgba(255, 206, 86, 0.5)',
+								'rgba(75, 192, 192, 0.5)',
+								'rgba(153, 102, 255, 0.5)',
+								'rgba(255, 159, 64, 0.5)'
+							],
+						
+					}],
+					labels: [{% for item in range(4) %} "M{{item}}", {% endfor %}]
+				};		
+				
+				// get bar chart canvas
+				var mychart2 = document.getElementById("chart2").getContext("2d");
+
+				new Chart(mychart2, {
+					type: 'bar',
+					data: barData2,
+					options: options
+				})
+				var barData3 = {
+					datasets: [{
+						data: [{% for item in accuracy %} "{{item}}", {% endfor %}],
+						label: 'Accuracy',
+						backgroundColor: [
+								// 'rgba(255, 99, 132, 0.2)',
+								'rgba(54, 162, 235, 0.5)',
+								'rgba(255, 206, 86, 0.5)',
+								'rgba(75, 192, 192, 0.5)',
+								'rgba(153, 102, 255, 0.5)',
+								'rgba(255, 159, 64, 0.5)'
+							],
+						
+					}],
+					labels: [{% for item in range(4) %} "M{{item}}", {% endfor %}]
+				};		
+
+				// get bar chart canvas
+				var mychart3 = document.getElementById("chart3").getContext("2d");
+
+				new Chart(mychart3, {
+						type: 'bar',
+						data: barData3,
+						options: options
+					})
+
+			{% endif %}
 		</script>
 	
 </body>

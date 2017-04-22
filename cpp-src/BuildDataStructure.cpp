@@ -14,7 +14,7 @@
 #include "FDBG.cpp"
 #include "formatutil.cpp"
 #include "KBFUtil.hpp"
-
+#include "TestUtil.cpp"
 
 using namespace std;
 
@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
      ifile_ds.close();
      BOOST_LOG_TRIVIAL(info) << "Data structure built in " << Graph.construction_time << " s";
    } else {
-    
+     cout << "PAY ATTENTION!! IT IS SLOW!!" << endl;
      BOOST_LOG_TRIVIAL(info) << "Building De Bruijn Graph ...";
      Graph.build( kmers, edgemers, kmers.size(), k);
 
@@ -74,6 +74,86 @@ int main(int argc, char* argv[]) {
    //   BOOST_LOG_TRIVIAL(info) << "Size(Mb):" << Graph.bitSize() / (8.0 * 1024 * 1024);
    //   BOOST_LOG_TRIVIAL(info) << "Bits per element:" << Graph.bitSize() / static_cast<double>( Graph.n );
 
+
+   /**
+    * First batch of tree height tests
+    */
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests ...";
+
+   // Compute data about trees in the forest
+   unsigned num_trees;
+   double avg_height; // average height of trees
+   unsigned num_above; // number above the supposed max
+   unsigned num_below; // number below the supposed min
+   
+   Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+   BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";
+   BOOST_LOG_TRIVIAL(debug) << "The average height of a tree is " << avg_height;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees above the max height is  "
+      << num_above;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
+      << num_below;
+
+
+   BOOST_LOG_TRIVIAL(info) << "Remove edges test ...";
+
+   // How many random edges will be randomly removed
+   unsigned remove_edge_count = 10000;
+   unordered_set<kmer_t> removed_edges;
+
+   removeRandomEdges(remove_edge_count, Graph, edgemers, removed_edges);
+
+   BOOST_LOG_TRIVIAL(info) << removed_edges.size() << " edges removed.";
+
+   /**
+    * tree height tests after edge removal
+    */
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge removals ...";
+
+ 
+   Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+   BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";
+   BOOST_LOG_TRIVIAL(debug) << "The average height of a tree is " << avg_height;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees above the max height is  "
+      << num_above;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
+      << num_below;
+
+
+   BOOST_LOG_TRIVIAL(info) << "Add edges test (adding those edges back in) ...";
+
+   unordered_set<kmer_t>::iterator removed_edge_it;
+   kmer_t prefix;
+   kmer_t suffix;
+
+   for (removed_edge_it = removed_edges.begin(); removed_edge_it != removed_edges.end();
+      removed_edge_it++) {
+
+      Graph.split_edge(*removed_edge_it, prefix, suffix);
+      Graph.dynamicAddEdge(prefix, suffix);
+
+   }
+
+   /**
+    * tree height tests after edge addition
+    */
+   BOOST_LOG_TRIVIAL(info) << "Tree height tests after edge additions ...";
+
+  
+   Graph.getTreeData(num_trees, avg_height, num_above, num_below); 
+
+   BOOST_LOG_TRIVIAL(debug) << "There are " << num_trees << " trees";
+   BOOST_LOG_TRIVIAL(debug) << "The average height of a tree is " << avg_height;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees above the max height is  "
+      << num_above;
+   BOOST_LOG_TRIVIAL(debug) << "The number of trees below the min height is  "
+      << num_below;
+
+
+
+
    BOOST_LOG_TRIVIAL(info) << "Membership test...";
 
    std::random_device rd;
@@ -86,8 +166,8 @@ int main(int argc, char* argv[]) {
    //   BOOST_LOG_TRIVIAL( info ) << "Testing k-mer: " << get_kmer_str( kk, k ) << ' ' <<  Graph.detect_membership(kk);
 
    // }
-     
-   unordered_set<kmer_t>::iterator i; 
+
+   unordered_set<kmer_t>::iterator i;     
    for (i = kmers.begin(); i != kmers.end(); ++i) {
       //      BOOST_LOG_TRIVIAL(debug) << 
       //      BOOST_LOG_TRIVIAL(debug) << Graph.inefficient_detect_membership( *i ) << ' ' << Graph.detect_membership( *i );
@@ -99,7 +179,7 @@ int main(int argc, char* argv[]) {
 
 
    BOOST_LOG_TRIVIAL(info) << "Membership tests passed!";
-   
+
    return 0;
 }
 

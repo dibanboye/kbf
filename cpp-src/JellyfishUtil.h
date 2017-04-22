@@ -75,4 +75,5 @@ static string mer_binary_to_string(uint64_t mer, size_t klen) {
   return out;
 }
 
+
 #endif

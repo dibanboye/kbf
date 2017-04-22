@@ -423,7 +423,7 @@ class generate_hash {
 
    typedef number<cpp_int_backend<128, 128, unsigned_magnitude, checked, void> > moduloInt;
    u_int64_t update_KRHash_val_OUT_mod
-      ( u_int64_t& KR_val,       //KR hash of source kmer (mod P)
+      ( const u_int64_t& KR_val,       //KR hash of source kmer (mod P)
 	const unsigned& first,   //character at front of source k-mer
 	const unsigned& last ) { //last character in target k-mer
       //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by OUT(mod)...";
@@ -461,7 +461,7 @@ class generate_hash {
     * target k-mer is IN neighbor of source k-mer
     */
    u_int64_t update_KRHash_val_IN_mod
-      ( u_int64_t& KR_val,       //KR hash of source kmer
+      ( const u_int64_t& KR_val,       //KR hash of source kmer
 	const unsigned& first,   //character at front of target k-mer
 	const unsigned& last ) { //last character in source k-mer
 	   //	   BOOST_LOG_TRIVIAL(debug) << "Updating a KR value by IN(mod)...";
