@@ -22,6 +22,7 @@ void remove_front_letter(const kmer_t&, kmer_t&, const unsigned&);
 void set_kmer( kmer_t& mer, unsigned k, unsigned i, Letter& c );
 kmer_t pushOnFront(const kmer_t& orig, Letter& letter, unsigned);
 kmer_t pushOnBack(const kmer_t& orig, Letter& letter, unsigned);
+static vector< uint64_t > DEFAULT_VECTOR;
 
 // Representation of A, C, G, and T in bits 00, 01, 10, 11
 class Letter {
@@ -770,6 +771,98 @@ public:
     return true;
   }
 
+   /*
+    * Utility function for dynamicRemoveEdge
+    * tree_mers is all the mers from a
+    * tree of height < alpha
+    * Looks for adjacent tree to merge with
+    *
+    * 
+    */
+   void removalFixTree( vector< kmer_t >& tree_mers,
+			vector< uint64_t >& tree_mers_hash,
+			map< kmer_t, unsigned >& tree_heights ) {
+      //make unordered_sets from the tree hash values
+      unordered_set< uint64_t > uo_hash ( tree_mers_hash.begin(), tree_mers_hash.end() );
+      for (unsigned i = 0; i < tree_mers_hash.size(); ++i ) {
+	 uint64_t tree_hash = tree_mers_hash[i];
+	 kmer_t tree_mer = tree_mers[i];
+	 //get all edges incident with tree_mer
+	 for (unsigned j = 0; j < 4; ++j) {
+	    if (IN.get( tree_hash, j )) {
+	       Letter L( j );
+	       kmer_t neighbor = pushOnFront( tree_mer, L, this->k );
+	       if ( uo_hash.find( f(neighbor) ) == uo_hash.end()  ) { //TODO:could use hash update here
+		  //we have found a neighbor not in this tree
+		  //need to get the tree data of neighbor
+		  vector< kmer_t > neighborSortedKmers;
+		  map< kmer_t, unsigned > neighborHeights;
+		  getTreeHeight( neighbor, neighborHeights, neighborSortedKmers );
+		  //mergeTrees parameters will change
+		  mergeTrees( tree_mer, neighbor,
+			      tree_heights, neighborHeights,
+			      tree_mers, neighborSortedKmers );
+		  return;
+	       }
+	    }
+	    if (OUT.get( tree_hash, j )) {
+	       Letter L( j );
+	       kmer_t neighbor = pushOnBack( tree_mer, L, this->k );
+	       if ( uo_hash.find( f(neighbor) ) == uo_hash.end()  ) { //TODO: inefficient hash comp.
+		  //we have found a neighbor not in this tree
+		  //need to get the tree data of neighbor
+		  vector< kmer_t > neighborSortedKmers;
+		  map< kmer_t, unsigned > neighborHeights;
+		  getTreeHeight( neighbor, neighborHeights, neighborSortedKmers );
+		  mergeTrees( tree_mer, neighbor,
+			      tree_heights, neighborHeights,
+			      tree_mers, neighborSortedKmers );
+		  return;
+	       }
+	    }
+	 }
+      }
+   }
+   
+   /*
+    * removalUpdateForest
+    * An edge has been removed between a child and parent
+    * in one of the forest's trees 
+    * This function performs the necessary changes to the forest
+    * in an attempt to maintain tree height bounds
+    *
+    * This is a utility function for dynamicRemoveEdge
+    */
+   void removalUpdateForest( const kmer_t& child, const uint64_t& child_hash,
+			     const kmer_t& parent, const uint64_t& parent_hash ) {
+      //the child's subtree is without a root
+      //temporarily, make it the root of its subtree
+      //TODO: replace this by sampling best possible root
+      fo.storeNode( child_hash, child );
+
+      //get the heights of the two new trees
+      //First, look at parent's tree
+      vector< kmer_t > parentSortedKmers;
+      vector< uint64_t > parentSortedKmers_hash;
+      map< kmer_t, unsigned > parentHeights;
+      unsigned parentTreeHeight = getTreeHeight( parent, parentHeights, parentSortedKmers, parentSortedKmers_hash );
+      if (alpha < parentTreeHeight) {
+	 //Fix this tree if possible
+	 //	 removalFixTree( parentSortedKmers, parentSortedKmers_hash, parentHeights );
+      }
+      //Second, look at child's tree
+      vector< kmer_t > childSortedKmers;
+      vector< uint64_t > childSortedKmers_hash;
+      map< kmer_t, unsigned > childHeights;
+      unsigned childTreeHeight = getTreeHeight( child, childHeights, childSortedKmers, childSortedKmers_hash );
+      if (alpha < childTreeHeight) {
+	 //Fix this tree if possible
+	 //	 removalFixTree( childSortedKmers, childSortedKmers_hash, childHeights );
+      }
+   }
+   
+
+   
   /**
    * Merge two trees into one at the edge u,v
    * It is assumed that the De Bruijn graph has an edge from u to v
@@ -778,7 +871,8 @@ public:
    * Returns whether the two trees were successfully merged
    */
   // TODO
-  bool mergeTrees(const kmer_t& u, const kmer_t& v, const map<kmer_t, unsigned>& u_heights,
+  // WORK IN PROGRESS
+     bool mergeTrees(const kmer_t& u, const kmer_t& v, const map<kmer_t, unsigned>& u_heights,
      const map<kmer_t, unsigned>& v_heights, const vector<kmer_t>& u_sorted_kmers,
      const vector<kmer_t>& v_sorted_kmers, const u_int64_t& root_u_hash, const u_int64_t& root_v_hash,
      const u_int64_t& u_hash, const u_int64_t& v_hash, const Letter& u_letter, const Letter& v_letter) {
@@ -1005,8 +1099,6 @@ public:
     }
     
     //making it this far means that an edge can be removed between them
-    //Add the edge to OUT[ f(u) ] and to IN[ f(v) ]
-    //if edge was already present, quit
     u_int64_t hashU = f( u );
     u_int64_t hashV = f( v );
     unsigned outIndex = access_kmer( v, k, k - 1 );
@@ -1024,15 +1116,11 @@ public:
     // Now, need to update the forest if it includes this edge
     if ((!this->fo.isStored(hashU)) && (this->fo.getNext(hashU, u, this->k) == v)) {
        // u's parent is v
-       // u is now made root of its subtree
-       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(u, this->k) << " is now root of its subtree.";
-       this->fo.storeNode(hashU, u);
+       removalUpdateForest( u, hashU, v, hashV );
     }
     else if ((!this->fo.isStored(hashV)) && (this->fo.getNext(hashV, v, this->k) == u)) {
        // v's parent is u
-       // v is now made root of its subtree
-       //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(v, this->k) << " is now root of its subtree.";
-       this->fo.storeNode(hashV, v);
+       removalUpdateForest( v, hashV, u, hashU );
     }
     else {
        // this edge is not in the forest
@@ -1520,11 +1608,16 @@ public:
 
   /**
    * Given a node, get all of its children in the forest
+   * children_hash contains hash values of children in the
+   * the same as order as children
    */
-  void getChildren(const kmer_t& node, vector<kmer_t>& children) {
-
+   void getChildren(const kmer_t& node,
+		    //		    uint64_t& node_kr,   //The input node's karp-rabin hash value
+		    vector<kmer_t>& children,
+		    vector< uint64_t >& children_hash) {
      children.clear();
-
+     children_hash.clear();
+     
      // get KR value to make getting neighbor hash values easier
      u_int64_t node_kr = f.generate_KRHash_val_mod(node, this->k);
 
@@ -1583,6 +1676,7 @@ public:
        if ((node == parent) && !(this->fo.isStored(neighbor_hash))) {
          // this is a child in the forest
          children.push_back(neighbors[i]);
+	 children_hash.push_back( neighbor_hash );
          //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(neighbors[i], this->k)
          //  << " is a child";
        }
@@ -1596,9 +1690,10 @@ public:
   /**
    * Given a kmer, find the height of the tree that node is in in the forest
    */
-  unsigned getTreeHeight(const kmer_t& node, map<kmer_t, unsigned>& heights,
-     vector<kmer_t>& sorted_kmers) {
-
+  unsigned getTreeHeight(const kmer_t& node,
+			 map<kmer_t, unsigned>& heights,
+			 vector<kmer_t>& sorted_kmers,
+			 vector<uint64_t>& sorted_kmers_hash = DEFAULT_VECTOR ) {
      //BOOST_LOG_TRIVIAL(debug) << "Getting the height of tree with node "
      //   << get_kmer_str(node, this->k);
 
@@ -1607,17 +1702,22 @@ public:
      u_int64_t root_hash;
      getRoot(node, root, root_hash);
 
-     return getTreeHeightRoot(root, heights, sorted_kmers);
+     return getTreeHeightRoot(root, heights, sorted_kmers, sorted_kmers_hash );
   }
 
+  
+   
   /**
    * Same as above, but it is assumed that the input node is the root of the tree
    * Keeps track of each kmer in tree and its height
    * Also makes vector of kmers sorted from smallest to biggest height
+   * sorted_kmers_hash is the hash value of the sorted_kmers in the same order
+   * 
    */
   // TODO: Make array copying more efficient
+   //TODO: is not fully using hash function update. Needs to be fixed
   unsigned getTreeHeightRoot(const kmer_t& root, map<kmer_t, unsigned>& heights,
-     vector<kmer_t>& sorted_kmers) {
+			     vector<kmer_t>& sorted_kmers, vector< uint64_t>& sorted_kmers_hash = DEFAULT_VECTOR ) {
 
      //BOOST_LOG_TRIVIAL(debug) << "The root of this tree is node "
      //  << get_kmer_str(root, this->k);
@@ -1628,16 +1728,20 @@ public:
 
      heights.clear();
      sorted_kmers.clear();
+     sorted_kmers_hash.clear();
 
      // add root to heights
      heights[root] = 0;
      sorted_kmers.push_back(root);
-
+     
      vector<kmer_t> children;
-     getChildren(root, children);
+     vector<uint64_t> children_hash;
+     getChildren(root, children, children_hash);
 
-     vector<kmer_t> children_children; // the children of the children
+     vector<kmer_t> children_children;        // the children of the children
+     vector<uint64_t> children_children_hash; // the children of the children
      vector<kmer_t> children_node; // holds the children of a single node
+     vector<uint64_t> children_node_hash; // holds the children of a single node
 
      unsigned height = 0;
 
@@ -1649,29 +1753,29 @@ public:
 
         // Get children of each child
         for (int i = 0; i < children.size(); i++) {
-
            // add child with height
            heights[children[i]] = height;
            sorted_kmers.push_back(children[i]);
-
+	   sorted_kmers_hash.push_back( children_hash[i] );
            //BOOST_LOG_TRIVIAL(debug) << "Getting the children of node "
            //  << get_kmer_str(children[i], this->k);
 
            // get the ith child's children
-           getChildren(children[i], children_node);
+           getChildren(children[i], children_node, children_node_hash );
 
            // add each one to children_children
            for (int j = 0; j < children_node.size(); j++) {
-
               //BOOST_LOG_TRIVIAL(debug) << "Found child "
               //  << get_kmer_str(children_node[j], this->k);
               children_children.push_back(children_node[j]);
+	      children_children_hash.push_back(children_node_hash[j]);
            }
         }
 
-        children = children_children;
+        children.swap(children_children);
         children_children.clear();
-
+	children_hash.swap( children_children_hash );
+	children_children_hash.clear();
         //BOOST_LOG_TRIVIAL(debug) << "There are now " << children.size() << " children";
      }
 
