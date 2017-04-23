@@ -120,12 +120,11 @@ unsigned addRandomEdges(const unsigned& count, FDBG& Graph, unordered_set<kmer_t
 /**
  * Remove random edges from the graph
  * count is not the number of edges removed
- * Adds all removed edges to removed
  *
  * Returns elapsed time in seconds (of only the edge removal update)
  */
-double removeRandomEdges(const unsigned& count, FDBG& Graph,
-   unordered_set<kmer_t>& edgemers, unordered_set<kmer_t>& removed) {
+double removeRandomEdges(const unsigned& count, FDBG& Graph, unordered_set<kmer_t> edgemers,
+   unordered_set<kmer_t>& removed) {
 
    // Random numbers determining which kmers
    vector<unsigned> randoms;
@@ -143,7 +142,11 @@ double removeRandomEdges(const unsigned& count, FDBG& Graph,
    unsigned m = 0;
 
    double time_elapsed = 0.0;
-   while ((removed_count < count) && (removed.size() != edgemers.size())) {
+   while ((removed_count < count) && (edgemers.size() != 0)) {
+
+      //BOOST_LOG_TRIVIAL(debug) << "There are " << edgemers.size() << " edges left in the graph";
+      //BOOST_LOG_TRIVIAL(debug) << "Currently iterator points to " << get_kmer_str(*i, Graph.k);
+      //BOOST_LOG_TRIVIAL(debug) << "We will skip " << randoms[m] << " elements";
 
       // Skip random number of edgemers
       for (int j = 0; (j < randoms[m]) && (i != edgemers.end()); j++) {     
@@ -156,18 +159,21 @@ double removeRandomEdges(const unsigned& count, FDBG& Graph,
 
       // Now we have a random edgemer
       //BOOST_LOG_TRIVIAL(debug) << "Random edgemer "
-      //   << get_kmer_str(*i, Graph.k + 1) << " generated.";
+       //  << get_kmer_str(*i, Graph.k + 1) << " generated.";
 
-      if (removed.find(*i) == removed.end()) {
-         // We have not already removed this edgemer
-         Graph.split_edge(*i, prefix, suffix);
+      // get the prefix and suffix
+      Graph.split_edge(*i, prefix, suffix);
 
-	 clock_t t_start = clock();
-         Graph.dynamicRemoveEdge(prefix, suffix);
-	 time_elapsed += double (clock() - t_start) / CLOCKS_PER_SEC;
-         removed.insert(*i);
-         removed_count++;
-      }
+      // Remove it
+      clock_t t_start = clock();
+      Graph.dynamicRemoveEdge(prefix, suffix);
+      time_elapsed += double (clock() - t_start) / CLOCKS_PER_SEC;
+      //BOOST_LOG_TRIVIAL(debug) << "The edge was removed";
+      removed.insert(*i);
+
+      // Remove it from edgemers, too
+      i = edgemers.erase(i);
+      removed_count++;
 
       // Use the next random number
       m++;

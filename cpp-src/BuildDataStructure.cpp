@@ -96,8 +96,11 @@ int main(int argc, char* argv[]) {
    BOOST_LOG_TRIVIAL(info) << "Remove edges test ...";
 
    // How many random edges will be randomly removed
-   unsigned remove_edge_count = 10000;
+   // currently set as 0.1% of edges to remove
+   unsigned remove_edge_count = 0.001*edgemers.size();
    unordered_set<kmer_t> removed_edges;
+
+   BOOST_LOG_TRIVIAL(info) << "Removing " << remove_edge_count << " random edges ...";
 
    double t_elapsed = removeRandomEdges(remove_edge_count, Graph, edgemers, removed_edges);
 
