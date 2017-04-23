@@ -150,7 +150,7 @@ class Forest {
      * Set value of the ith node
      * Not stored
      */
-    void setNode(u_int64_t& i, bool IN, Letter& l) {
+    void setNode(const u_int64_t& i, bool IN, const Letter& l) {
 
        u_int64_t index = this->nodeIndex(i);
 
@@ -714,7 +714,6 @@ public:
     //BOOST_LOG_TRIVIAL(debug) << "root " << get_kmer_str(root_u, this->k)
     //   << " and root " << get_kmer_str(root_v, this->k);
 
-
     map<kmer_t, unsigned> u_heights;
     vector<kmer_t> u_sorted_kmers;
     map<kmer_t, unsigned> v_heights;
@@ -739,64 +738,50 @@ public:
        return true;
     }
 
+    // The letter u has, v doesn't
+    Letter u_letter (inIndex);
+    // similar
+    Letter v_letter (outIndex);
 
-    // Both trees are too small. Merge them.
     if ((treeheight_u < this->alpha) && (treeheight_v < this->alpha)) {
+       // Both trees are too small. Merge them.
 
-       //BOOST_LOG_TRIVIAL(debug) << "Both trees are below the min height. Merging.";
-       // the TO kmer's (v) tree is left alone
-       // the FROM kmer's tree is added to the TO kmer's tree
-       // by reversing all edges from the FROM kmer to its root
-       reverseEdgesToRoot(u);
-
-       // the root of the FROM kmer is unstored
-       this->fo.unstoreNode(root_u_hash);
-
-       // Add forest edge from u to v
-       // u's parent is switched
-       Letter l (outIndex);
-       this->fo.setNode(hashU, false, l);
-
-       //BOOST_LOG_TRIVIAL(debug) << "Merged trees.";
+       mergeTrees(u, v, u_heights, v_heights, u_sorted_kmers, v_sorted_kmers,
+          root_u_hash, root_v_hash, hashU, hashV, u_letter, v_letter);
     }
     else if ((treeheight_u < this->alpha) && (height_v < this->alpha)) {
-
        // only u is too short
-       // v is at a short enough height that we can just merge u into v
-       reverseEdgesToRoot(u);
-       this->fo.unstoreNode(root_u_hash);
-       Letter l (outIndex);
-       this->fo.setNode(hashU, false, l);
+       mergeTrees(u, v, u_heights, v_heights, u_sorted_kmers, v_sorted_kmers,
+           root_u_hash, root_v_hash, hashU, hashV, u_letter, v_letter);
 
     }
     else if ((treeheight_v < this->alpha) && (height_u < this->alpha)) {
 
        // only v is too short
-       // u is at a short enough height that we can just merge v into u
-       reverseEdgesToRoot(v);
-       this->fo.unstoreNode(root_v_hash);
-       Letter l (inIndex);
-       this->fo.setNode(hashV, true, l);
+       mergeTrees(u, v, u_heights, v_heights, u_sorted_kmers, v_sorted_kmers,
+           root_u_hash, root_v_hash, hashU, hashV, u_letter, v_letter);
 
     }
     else {
         //BOOST_LOG_TRIVIAL(debug) << "Both trees were at least the minimum height. No merging.";
     }
 
+
     return true;
   }
 
   /**
    * Merge two trees into one at the edge u,v
+   * It is assumed that the De Bruijn graph has an edge from u to v
    * New root is sampled
    * u_heights and v_heights give the heights of all kmers in each tree
    * Returns whether the two trees were successfully merged
    */
   // TODO
-  // WORK IN PROGRESS
   bool mergeTrees(const kmer_t& u, const kmer_t& v, const map<kmer_t, unsigned>& u_heights,
      const map<kmer_t, unsigned>& v_heights, const vector<kmer_t>& u_sorted_kmers,
-     const vector<kmer_t>& v_sorted_kmers) {
+     const vector<kmer_t>& v_sorted_kmers, const u_int64_t& root_u_hash, const u_int64_t& root_v_hash,
+     const u_int64_t& u_hash, const u_int64_t& v_hash, const Letter& u_letter, const Letter& v_letter) {
 
      //for (int i = 0; i < u_sorted_kmers.size(); ++i) {
      //   BOOST_LOG_TRIVIAL(debug) << "kmer " << get_kmer_str(u_sorted_kmers[i], this->k) 
@@ -808,47 +793,179 @@ public:
      //      << " has height " << v_heights.at(v_sorted_kmers[i]);
      //}
 
-     unsigned treeheight_u = 0;
-     unsigned height_u = 0;
-     unsigned height_v = 0;
-     unsigned treeheight_v = 0;
+     // Heights of u and v in their trees
+     unsigned height_u = u_heights.at(u);
+     unsigned height_v = v_heights.at(v);
+     
+     // Heights of trees
+     unsigned treeheight_u = u_heights.at(u_sorted_kmers[u_sorted_kmers.size() - 1]);
+     unsigned treeheight_v = v_heights.at(v_sorted_kmers[v_sorted_kmers.size() - 1]);
+
+     // roots
+     kmer_t root_u = u_sorted_kmers[0];
+     kmer_t root_v = v_sorted_kmers[0];
+
+     //BOOST_LOG_TRIVIAL(debug) << "The roots are " << get_kmer_str(root_u, this->k)
+     //   << " and " << get_kmer_str(root_v, this->k);
+
+     //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(u, this->k) << " is at height " << height_u
+     //   << " in a tree of height " << treeheight_u;
+
+     //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(v, this->k) << " is at height " << height_v
+     //   << " in a tree of height " << treeheight_v;
+
+
+     // The furthest from the root leafs on a different path, and their heights
+     //kmer_t leaf_u;
+     //unsigned treeheight_u;
+     //kmer_t leaf_v;
+     //unsigned treeheight_v;
+
+     // Find longest leaf that is not on the same path to the root
+     //longestLeaf(u, u_heights, u_sorted_kmers, leaf_u, treeheight_u);
+
+     //BOOST_LOG_TRIVIAL(debug) << "Leaf for " << get_kmer_str(u, this->k) << " is "
+     //   << get_kmer_str(leaf_u, this->k) << " at height " << treeheight_u;
+
+     //longestLeaf(v, v_heights, v_sorted_kmers, leaf_v, treeheight_v);
+     //BOOST_LOG_TRIVIAL(debug) << "Leaf for " << get_kmer_str(v, this->k) << " is "
+     //   << get_kmer_str(leaf_v, this->k) << " at height " << treeheight_v;
 
      // The distance from the furthest leaf in u along the path from that leaf to root_u
      // then down to u, over to v, up to v's root, and then down v's furthest path that
      // the root should be
      unsigned root_hops = 0.5*(treeheight_u + height_u + 1 + height_v + treeheight_v);
 
-     if (root_hops > (3/2)*this->alpha + 1) {
-        // If we merge these trees, the resulting tree will be too big
-        BOOST_LOG_TRIVIAL(warning) << "Trees unable to be merged, the resulting tree would be too tall.";
-        return false;
-     }
+     kmer_t new_root;
+     u_int64_t new_root_hash; 
 
      // The root is somewhere in u's tree
      if (root_hops <= treeheight_u + height_u) {
-        BOOST_LOG_TRIVIAL(debug) << "The root should be in " << get_kmer_str(u, this->k)
-           << "'s tree";
+        //BOOST_LOG_TRIVIAL(debug) << "The root should be in " << get_kmer_str(u, this->k)
+        //   << "'s tree";
         
         // How much up from u the new root is
         unsigned hops = treeheight_u + height_u - root_hops;
-        BOOST_LOG_TRIVIAL(debug) << "It is " << hops << " hops up";
+        //BOOST_LOG_TRIVIAL(debug) << "It is " << hops << " hops up";
 
+        if (hops > height_u ) {
+           // For now, we don't go past the root
+           //BOOST_LOG_TRIVIAL(warning) << "New root is past an old root. Will just use old root.";
+           hops = height_u;
+        }
+
+        // Make sure that root can reach v's nodes in less than or equal to 3*alpha
+        if ((hops + height_v + treeheight_v + 1) > 3*alpha) {
+           BOOST_LOG_TRIVIAL(warning) << "Trees will not be merged because we might end up with one too big.";
+           return false;
+        }
+
+        // Go up to new root
+        travelUp(u, hops, new_root, new_root_hash);
+
+        // Make this our new root
+        reverseEdgesToRoot(new_root);
+        reverseEdgesToRoot(v);
+        
+        if (new_root != root_u) {
+           //BOOST_LOG_TRIVIAL(debug) << "Unstoring root " << root_u_hash;
+           this->fo.unstoreNode(root_u_hash);
+        }
+
+        this->fo.unstoreNode(root_v_hash);
+
+        this->fo.storeNode(new_root_hash, new_root);
+
+        // forest edge from v to u
+        this->fo.setNode(v_hash, true, u_letter);
      }
      // The root is somewhere in v's tree
      else {
-        BOOST_LOG_TRIVIAL(debug) << "The root should be in " << get_kmer_str(v, this->k)
-           << "'s tree";
+        //BOOST_LOG_TRIVIAL(debug) << "The root should be in " << get_kmer_str(v, this->k)
+        //   << "'s tree";
 
         // How much up from v the new root is
-        unsigned hops = root_hops - treeheight_u + height_u;
-        BOOST_LOG_TRIVIAL(debug) << "It is " << hops << " hops up";
+        unsigned hops = root_hops - treeheight_u - height_u - 1;
+        //BOOST_LOG_TRIVIAL(debug) << "It is " << hops << " hops up";
 
- 
+         if (hops > height_v ) {
+           // For now, we don't go past the root
+           //BOOST_LOG_TRIVIAL(warning) << "New root is past an old root. Will just use old root.";
+           hops = height_v;
+        }
+
+        // Make sure that root can reach u's nodes in less than or equal to 3*alpha
+        if ((treeheight_u + height_u + 1 + hops) > 3*alpha) {
+           BOOST_LOG_TRIVIAL(warning) << "Trees will not be merged because we might end up with one too big.";
+           return false;
+        }
+
+        // Go up to new root
+        travelUp(v, hops, new_root, new_root_hash);
+
+        reverseEdgesToRoot(new_root);
+        reverseEdgesToRoot(u);
+
+        if (new_root != root_v) {
+           //BOOST_LOG_TRIVIAL(debug) << "Unstoring root " << root_v_hash;
+           this->fo.unstoreNode(root_v_hash);
+        }
+
+        this->fo.unstoreNode(root_u_hash);
+
+        this->fo.storeNode(new_root_hash, new_root);
+
+        // forest edge from u to v
+        this->fo.setNode(u_hash, false, v_letter);
+
      }
+
+     //BOOST_LOG_TRIVIAL(debug) << "New root will be " << get_kmer_str(new_root, this->k);
+
+     //map<kmer_t, unsigned> testheights;
+     //vector<kmer_t> testkmers;
+     //unsigned testheight = getTreeHeightRoot(new_root, testheights, testkmers);
+
+     //if (testheight > 3*this->alpha + 1) {
+     //   BOOST_LOG_TRIVIAL(warning) << "Tree too big after merging!";
+     //}
 
      return true;
 
   }
+
+
+   /**
+    * Find the longest leaf in the tree that is not on the same path to the root
+    * as u
+    * heights is a map of all kmers in the tree to their heights
+    * sorted_kmers is the kmers in the tree sorted from smallest to largest height
+    * Stores results in leaf, leaf_height
+    */
+   void longestLeaf(const kmer_t& u, const map<kmer_t, unsigned>& heights,
+      const vector<kmer_t>& sorted_kmers, kmer_t& leaf, unsigned& leaf_height) {
+
+     // Find longest leaf that is not on the same path as u to the root
+     for (int i = (sorted_kmers.size() - 1); i >= 0 ; --i) {
+
+        //BOOST_LOG_TRIVIAL(debug) << "Checking kmer " << get_kmer_str(sorted_kmers[i], this->k);
+
+        if (i == 0) {
+           // We've gotten to the root. So no need to do tests.
+            leaf = sorted_kmers[i];
+            leaf_height = 0;
+            break;
+        }
+
+        if ((!isAncestor(sorted_kmers[i], u)) && (!isAncestor(u, sorted_kmers[i]))) {
+           leaf = sorted_kmers[i];
+           leaf_height = heights.at(sorted_kmers[i]);
+           break;
+        }
+
+     }
+   }
+
 
   /*
    * Remove an edge from the data structure.
@@ -1261,6 +1378,61 @@ public:
      }
   }
 
+
+  /**
+   * Checks whether ancestor is an ancestor in the tree of node
+   */
+  bool isAncestor(kmer_t node, const kmer_t& ancestor) {
+
+    // First check whether these are the same before moving up
+    if (node == ancestor) {
+       //BOOST_LOG_TRIVIAL(debug) << "Node an ancestor are equal. So ancestor is an ancestor.";
+       return true;
+    }
+
+    // ancestor's hash
+    u_int64_t ancestor_hash = this->f(ancestor);
+
+    // node's hash and other stuff to travel up efficiently
+    u_int64_t kr = f.generate_KRHash_val_mod(node, this->k);
+    u_int64_t hash = f.perfect_from_KR_mod(kr);
+    u_int64_t parent;
+    u_int64_t parent_kr;
+
+    //BOOST_LOG_TRIVIAL(debug) << "Finding whether " << get_kmer_str(ancestor, this->k)
+    //   << " is an ancestor of " << get_kmer_str(node, this->k);
+
+    // node could be a root
+    if (this->fo.isStored(hash)) {
+       //BOOST_LOG_TRIVIAL(debug) << "The node is a root and not equal to ancestor";
+       // We already checked whether node and ancestor were the same
+       return false;
+    } 
+
+    // Keep getting parent until we've found a root or ancestor
+    while (!this->fo.isStored(hash)) {
+
+       getParent(node, kr, parent, parent_kr);
+
+       // is this the ancestor
+       if (parent == ancestor) {
+          //BOOST_LOG_TRIVIAL(debug) << "This is ancestor. So it is true.";
+          return true;
+       }
+
+       // move up
+       hash = f.perfect_from_KR_mod(parent_kr);
+       node = parent;
+       kr = parent_kr;
+       //BOOST_LOG_TRIVIAL(debug) << "Moved to parent " << get_kmer_str(node, this->k);
+    }
+
+    //BOOST_LOG_TRIVIAL(debug) << "Ancestor was not found. Not an ancestor.";
+    return false;
+  }
+
+
+
   /**
    * Get the root in the forest that this node goes to
    */
@@ -1316,11 +1488,11 @@ public:
     u_int64_t parent;
     u_int64_t parent_kr;
 
-    BOOST_LOG_TRIVIAL(debug) << "Travelling up " << hops << " hops from "
-       << get_kmer_str(node, this->k);
+    //BOOST_LOG_TRIVIAL(debug) << "Travelling up " << hops << " hops from "
+    //   << get_kmer_str(node, this->k);
 
     if (this->fo.isStored(hash)) {
-      BOOST_LOG_TRIVIAL(debug) << "Travelled 0 hops";
+      //BOOST_LOG_TRIVIAL(debug) << "Travelled 0 hops";
       ancestor = node;
       ancestor_hash = hash;
       return;
@@ -1331,14 +1503,14 @@ public:
     while ((hop_count < hops) && !this->fo.isStored(hash)) {
 
        getParent(node, kr, parent, parent_kr);
-       BOOST_LOG_TRIVIAL(debug) << "Moved to parent " << get_kmer_str(parent, this->k);
+       //BOOST_LOG_TRIVIAL(debug) << "Moved to parent " << get_kmer_str(parent, this->k);
        hash = f.perfect_from_KR_mod(parent_kr);
        node = parent;
        kr = parent_kr;
        hop_count++;
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "Finished travelling. Found " << get_kmer_str(node, this->k);
+    //BOOST_LOG_TRIVIAL(debug) << "Finished travelling. Found " << get_kmer_str(node, this->k);
     ancestor = node;
     ancestor_hash = hash;
 
