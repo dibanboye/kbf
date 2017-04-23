@@ -776,8 +776,6 @@ public:
     * tree_mers is all the mers from a
     * tree of height < alpha
     * Looks for adjacent tree to merge with
-    *
-    * 
     */
    void removalFixTree( vector< kmer_t >& tree_mers,
 			vector< uint64_t >& tree_mers_hash,
@@ -792,6 +790,7 @@ public:
 	    if (IN.get( tree_hash, j )) {
 	       Letter L( j );
 	       kmer_t neighbor = pushOnFront( tree_mer, L, this->k );
+
 	       if ( uo_hash.find( f(neighbor) ) == uo_hash.end()  ) { //TODO:could use hash update here
 		  //we have found a neighbor not in this tree
 		  //need to get the tree data of neighbor
@@ -799,9 +798,23 @@ public:
 		  map< kmer_t, unsigned > neighborHeights;
 		  getTreeHeight( neighbor, neighborHeights, neighborSortedKmers );
 		  //mergeTrees parameters will change
-		  mergeTrees( tree_mer, neighbor,
-			      tree_heights, neighborHeights,
-			      tree_mers, neighborSortedKmers );
+		  kmer_t neighbor_root;
+		  uint64_t neighbor_root_hash;
+		  getRoot( neighbor, neighbor_root, neighbor_root_hash );
+		  kmer_t tree_root;
+		  uint64_t tree_root_hash;
+		  getRoot( tree_mer, tree_root, tree_root_hash );
+		  Letter nei_letter = access_kmer( neighbor, k, 0 );
+		  Letter tree_letter = access_kmer( tree_mer, k, k - 1 );
+		  //		  BOOST_LOG_TRIVIAL(debug) << "Merging trees after removal";
+		  //		  cerr << "here";
+		  mergeTrees( neighbor, tree_mer, 
+			      neighborHeights, tree_heights,
+			      neighborSortedKmers, tree_mers,
+			      neighbor_root_hash, tree_root_hash,
+			      f(neighbor), tree_hash,
+			      nei_letter, tree_letter
+			      );
 		  return;
 	       }
 	    }
@@ -814,9 +827,22 @@ public:
 		  vector< kmer_t > neighborSortedKmers;
 		  map< kmer_t, unsigned > neighborHeights;
 		  getTreeHeight( neighbor, neighborHeights, neighborSortedKmers );
-		  mergeTrees( tree_mer, neighbor,
+		  kmer_t neighbor_root;
+		  uint64_t neighbor_root_hash;
+		  getRoot( neighbor, neighbor_root, neighbor_root_hash );
+		  kmer_t tree_root;
+		  uint64_t tree_root_hash;
+		  getRoot( tree_mer, tree_root, tree_root_hash );
+		  Letter nei_letter = access_kmer( neighbor, k, k - 1 );
+		  Letter tree_letter = access_kmer( tree_mer, k, 0 );
+		  //		  BOOST_LOG_TRIVIAL(debug) << "Merging trees after removal";
+		  mergeTrees( tree_mer,  neighbor,
 			      tree_heights, neighborHeights,
-			      tree_mers, neighborSortedKmers );
+			      tree_mers, neighborSortedKmers,
+			      tree_root_hash, neighbor_root_hash,
+			      tree_hash, f( neighbor ),
+			      tree_letter, nei_letter );
+
 		  return;
 	       }
 	    }
@@ -848,7 +874,7 @@ public:
       unsigned parentTreeHeight = getTreeHeight( parent, parentHeights, parentSortedKmers, parentSortedKmers_hash );
       if (alpha < parentTreeHeight) {
 	 //Fix this tree if possible
-	 //	 removalFixTree( parentSortedKmers, parentSortedKmers_hash, parentHeights );
+	 removalFixTree( parentSortedKmers, parentSortedKmers_hash, parentHeights );
       }
       //Second, look at child's tree
       vector< kmer_t > childSortedKmers;
@@ -857,7 +883,7 @@ public:
       unsigned childTreeHeight = getTreeHeight( child, childHeights, childSortedKmers, childSortedKmers_hash );
       if (alpha < childTreeHeight) {
 	 //Fix this tree if possible
-	 //	 removalFixTree( childSortedKmers, childSortedKmers_hash, childHeights );
+	 removalFixTree( childSortedKmers, childSortedKmers_hash, childHeights );
       }
    }
    
@@ -872,10 +898,12 @@ public:
    */
   // TODO
   // WORK IN PROGRESS
-     bool mergeTrees(const kmer_t& u, const kmer_t& v, const map<kmer_t, unsigned>& u_heights,
-     const map<kmer_t, unsigned>& v_heights, const vector<kmer_t>& u_sorted_kmers,
-     const vector<kmer_t>& v_sorted_kmers, const u_int64_t& root_u_hash, const u_int64_t& root_v_hash,
-     const u_int64_t& u_hash, const u_int64_t& v_hash, const Letter& u_letter, const Letter& v_letter) {
+     bool mergeTrees(const kmer_t& u, const kmer_t& v,
+		     const map<kmer_t, unsigned>& u_heights, const map<kmer_t, unsigned>& v_heights,
+		     const vector<kmer_t>& u_sorted_kmers, const vector<kmer_t>& v_sorted_kmers,
+		     const u_int64_t& root_u_hash, const u_int64_t& root_v_hash,
+		     const u_int64_t& u_hash, const u_int64_t& v_hash,
+		     const Letter& u_letter, const Letter& v_letter) {
 
      //for (int i = 0; i < u_sorted_kmers.size(); ++i) {
      //   BOOST_LOG_TRIVIAL(debug) << "kmer " << get_kmer_str(u_sorted_kmers[i], this->k) 
@@ -950,7 +978,7 @@ public:
 
         // Make sure that root can reach v's nodes in less than or equal to 3*alpha
         if ((hops + height_v + treeheight_v + 1) > 3*alpha) {
-           BOOST_LOG_TRIVIAL(warning) << "Trees will not be merged because we might end up with one too big.";
+	   //           BOOST_LOG_TRIVIAL(warning) << "Trees will not be merged because we might end up with one too big.";
            return false;
         }
 
@@ -990,7 +1018,7 @@ public:
 
         // Make sure that root can reach u's nodes in less than or equal to 3*alpha
         if ((treeheight_u + height_u + 1 + hops) > 3*alpha) {
-           BOOST_LOG_TRIVIAL(warning) << "Trees will not be merged because we might end up with one too big.";
+	   //           BOOST_LOG_TRIVIAL(warning) << "Trees will not be merged because we might end up with one too big.";
            return false;
         }
 
@@ -1679,6 +1707,8 @@ public:
 	 children_hash.push_back( neighbor_hash );
          //BOOST_LOG_TRIVIAL(debug) << get_kmer_str(neighbors[i], this->k)
          //  << " is a child";
+	 //print_kmer( neighbors[i], k, cerr );
+	 //cerr << ' ' << f(neighbors[i]) << ' ' << neighbor_hash << endl;
        }
 
        
@@ -1702,7 +1732,9 @@ public:
      u_int64_t root_hash;
      getRoot(node, root, root_hash);
 
-     return getTreeHeightRoot(root, heights, sorted_kmers, sorted_kmers_hash );
+     unsigned res = getTreeHeightRoot(root, heights, sorted_kmers, sorted_kmers_hash );
+
+     return res;
   }
 
   
@@ -1716,8 +1748,10 @@ public:
    */
   // TODO: Make array copying more efficient
    //TODO: is not fully using hash function update. Needs to be fixed
-  unsigned getTreeHeightRoot(const kmer_t& root, map<kmer_t, unsigned>& heights,
-			     vector<kmer_t>& sorted_kmers, vector< uint64_t>& sorted_kmers_hash = DEFAULT_VECTOR ) {
+  unsigned getTreeHeightRoot(const kmer_t& root,
+			     map<kmer_t, unsigned>& heights,
+			     vector<kmer_t>& sorted_kmers,
+			     vector< uint64_t>& sorted_kmers_hash = DEFAULT_VECTOR ) {
 
      //BOOST_LOG_TRIVIAL(debug) << "The root of this tree is node "
      //  << get_kmer_str(root, this->k);
@@ -1733,7 +1767,8 @@ public:
      // add root to heights
      heights[root] = 0;
      sorted_kmers.push_back(root);
-     
+     sorted_kmers_hash.push_back( f(root) );
+				 
      vector<kmer_t> children;
      vector<uint64_t> children_hash;
      getChildren(root, children, children_hash);
@@ -1757,6 +1792,7 @@ public:
            heights[children[i]] = height;
            sorted_kmers.push_back(children[i]);
 	   sorted_kmers_hash.push_back( children_hash[i] );
+
            //BOOST_LOG_TRIVIAL(debug) << "Getting the children of node "
            //  << get_kmer_str(children[i], this->k);
 
