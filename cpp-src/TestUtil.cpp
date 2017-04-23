@@ -121,8 +121,10 @@ unsigned addRandomEdges(const unsigned& count, FDBG& Graph, unordered_set<kmer_t
  * Remove random edges from the graph
  * count is not the number of edges removed
  * Adds all removed edges to removed
+ *
+ * Returns elapsed time in seconds (of only the edge removal update)
  */
-void removeRandomEdges(const unsigned& count, FDBG& Graph,
+double removeRandomEdges(const unsigned& count, FDBG& Graph,
    unordered_set<kmer_t>& edgemers, unordered_set<kmer_t>& removed) {
 
    // Random numbers determining which kmers
@@ -139,6 +141,8 @@ void removeRandomEdges(const unsigned& count, FDBG& Graph,
    kmer_t prefix;
    kmer_t suffix;
    unsigned m = 0;
+
+   double time_elapsed = 0.0;
    while ((removed_count < count) && (removed.size() != edgemers.size())) {
 
       // Skip random number of edgemers
@@ -157,7 +161,10 @@ void removeRandomEdges(const unsigned& count, FDBG& Graph,
       if (removed.find(*i) == removed.end()) {
          // We have not already removed this edgemer
          Graph.split_edge(*i, prefix, suffix);
+
+	 clock_t t_start = clock();
          Graph.dynamicRemoveEdge(prefix, suffix);
+	 time_elapsed += double (clock() - t_start) / CLOCKS_PER_SEC;
          removed.insert(*i);
          removed_count++;
       }
@@ -170,5 +177,6 @@ void removeRandomEdges(const unsigned& count, FDBG& Graph,
       }
    }
 
+   return time_elapsed;
 }
 

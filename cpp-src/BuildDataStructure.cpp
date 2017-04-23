@@ -99,9 +99,9 @@ int main(int argc, char* argv[]) {
    unsigned remove_edge_count = 10000;
    unordered_set<kmer_t> removed_edges;
 
-   removeRandomEdges(remove_edge_count, Graph, edgemers, removed_edges);
+   double t_elapsed = removeRandomEdges(remove_edge_count, Graph, edgemers, removed_edges);
 
-   BOOST_LOG_TRIVIAL(info) << removed_edges.size() << " edges removed.";
+   BOOST_LOG_TRIVIAL(info) << removed_edges.size() << " edges removed in " << t_elapsed << " s";
 
    /**
     * tree height tests after edge removal
@@ -124,14 +124,17 @@ int main(int argc, char* argv[]) {
    unordered_set<kmer_t>::iterator removed_edge_it;
    kmer_t prefix;
    kmer_t suffix;
-
+   t_elapsed = 0.0;
    for (removed_edge_it = removed_edges.begin(); removed_edge_it != removed_edges.end();
       removed_edge_it++) {
 
       Graph.split_edge(*removed_edge_it, prefix, suffix);
+      clock_t t_start = clock();
       Graph.dynamicAddEdge(prefix, suffix);
-
+      t_elapsed += double (clock() - t_start) / CLOCKS_PER_SEC;
    }
+
+   BOOST_LOG_TRIVIAL(info) << "Adding " << removed_edges.size() << " edges took " << t_elapsed << " s";
 
    /**
     * tree height tests after edge addition

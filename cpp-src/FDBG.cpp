@@ -864,7 +864,7 @@ public:
       unsigned parentTreeHeight = getTreeHeight( parent, parentHeights, parentSortedKmers, parentSortedKmers_hash );
       if (alpha < parentTreeHeight) {
 	 //Fix this tree if possible
-	 removalFixTree( parentSortedKmers, parentSortedKmers_hash, parentHeights );
+	 //	 removalFixTree( parentSortedKmers, parentSortedKmers_hash, parentHeights );
       }
       //Second, look at child's tree
       vector< kmer_t > childSortedKmers;
@@ -873,7 +873,7 @@ public:
       unsigned childTreeHeight = getTreeHeight( child, childHeights, childSortedKmers, childSortedKmers_hash );
       if (alpha < childTreeHeight) {
 	 //Fix this tree if possible
-	 removalFixTree( childSortedKmers, childSortedKmers_hash, childHeights );
+	 //	 removalFixTree( childSortedKmers, childSortedKmers_hash, childHeights );
       }
    }
    
