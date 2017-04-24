@@ -909,6 +909,14 @@ public:
      unsigned treeheight_u = u_heights.at(u_sorted_kmers[u_sorted_kmers.size() - 1]);
      unsigned treeheight_v = v_heights.at(v_sorted_kmers[v_sorted_kmers.size() - 1]);
 
+     if (treeheight_u > 3*this->alpha + 1) {
+        BOOST_LOG_TRIVIAL(warning) << "Tree too big before merging.";
+     }
+
+     if (treeheight_v > 3*this->alpha + 1) {
+        BOOST_LOG_TRIVIAL(warning) << "Tree too big before merging.";
+     }
+
      // roots
      kmer_t root_u = u_sorted_kmers[0];
      kmer_t root_v = v_sorted_kmers[0];
@@ -918,19 +926,42 @@ public:
        return false;
      }
 
+     unsigned merge_case = -1;
+
      // If one of the heights is greater than 2*alpha we will break off one into the other
      if ((height_u > 2*this->alpha) && (treeheight_v < this->alpha)) {
         // break off some of u's tree into v's
 
-        //BOOST_LOG_TRIVIAL(debug) << "First merge case";
+        merge_case = 1;
 
         // Find the node that is up alpha in the tree
         kmer_t breakpoint;
         u_int64_t breakpoint_hash;
         travelUp(u, this->alpha, breakpoint, breakpoint_hash);
 
+        // TORI TEST
+        kmer_t above_breakpoint;
+        u_int64_t above_breakpoint_hash;
+        travelUp(u, this->alpha + 1, above_breakpoint, above_breakpoint_hash);
+
         // temporarily store this as a node to effectively break it off
         this->fo.storeNode(breakpoint_hash, breakpoint);
+
+        // TORI
+        kmer_t root_test;
+        kmer_t root_test_hash;
+        getRoot(u, root_test, root_test_hash);
+        if (root_test != breakpoint) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 1. We did not break at the breakpoint";
+        }
+
+        map<kmer_t, unsigned> test_broken;
+        vector<kmer_t> testbrokenkmers;
+        unsigned testheight = getTreeHeight(breakpoint, test_broken, testbrokenkmers);
+        if (testheight > 2*this->alpha) {
+           BOOST_LOG_TRIVIAL(warning) << "The broken off tree is too big,";
+        }
+
 
         // reverse edges from breakpoint down to v
         reverseEdgesToRoot(u);
@@ -941,11 +972,38 @@ public:
         // forest edge from u to v
         this->fo.setNode(u_hash, false, v_letter);
 
+        // TORI
+        root_test;
+        root_test_hash;
+        getRoot(u, root_test, root_test_hash);
+        if (root_test != root_v) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 1. We did not merge u into v's tree.";
+        }
+       
+        // TORI
+        root_test;
+        root_test_hash;
+        getRoot(breakpoint, root_test, root_test_hash);
+        if (root_test != root_v) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 1. We did not merge breakpoint into v's tree.";
+        }
 
+        kmer_t root_test2;
+        u_int64_t root_test2_hash;
+        getRoot(above_breakpoint, root_test2, root_test2_hash);
+        if (root_test2 != root_u) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 1. u's tree is not still intact.";
+        }
+
+
+       if (root_test == root_test2) {
+          BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 1. The two trees are now 1!";
+       }
+     
      }
      else if ((height_v > 2*this->alpha) && (treeheight_u < this->alpha)) {
 
-        //BOOST_LOG_TRIVIAL(debug) << "Second merge case";
+        merge_case = 2;
 
         // break off some of v's tree into u's
 
@@ -954,8 +1012,29 @@ public:
         u_int64_t breakpoint_hash;
         travelUp(v, this->alpha, breakpoint, breakpoint_hash);
 
+        // TORI TEST
+        kmer_t above_breakpoint;
+        u_int64_t above_breakpoint_hash;
+        travelUp(v, this->alpha + 1, above_breakpoint, above_breakpoint_hash);
+
         // temporarily store this as a node to effectively break it off
         this->fo.storeNode(breakpoint_hash, breakpoint);
+
+        // TORI
+        kmer_t root_test;
+        kmer_t root_test_hash;
+        getRoot(v, root_test, root_test_hash);
+        if (root_test != breakpoint) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 2. We did not break at the breakpoint";
+        }
+
+        map<kmer_t, unsigned> test_broken;
+        vector<kmer_t> testbrokenkmers;
+        unsigned testheight = getTreeHeight(breakpoint, test_broken, testbrokenkmers);
+        if (testheight > 2*this->alpha) {
+           BOOST_LOG_TRIVIAL(warning) << "The broken off tree is too big,";
+        }
+
 
         // reverse edges from breakpoint down to v
         reverseEdgesToRoot(v);
@@ -966,10 +1045,39 @@ public:
         // forest edge from v to u
         this->fo.setNode(v_hash, true, u_letter);
 
+        // TORI
+        root_test;
+        root_test_hash;
+        getRoot(v, root_test, root_test_hash);
+        if (root_test != root_u) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 2. We did not merge u into v's tree.";
+        }
+       
+        // TORI
+        root_test;
+        root_test_hash;
+        getRoot(breakpoint, root_test, root_test_hash);
+        if (root_test != root_u) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 2. We did not merge breakpoint into v's tree.";
+        }
+
+        kmer_t root_test2;
+        u_int64_t root_test2_hash;
+        getRoot(above_breakpoint, root_test2, root_test2_hash);
+        if (root_test2 != root_v) {
+           BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 2. u's tree is not still intact.";
+        }
+
+
+       if (root_test == root_test2) {
+          BOOST_LOG_TRIVIAL(warning) << "Something is wrong in merge case 2. The two trees are now 1!";
+       }
+
+
      }
      else if ((treeheight_u < this->alpha) || (treeheight_v < this->alpha)) {
 
-         //BOOST_LOG_TRIVIAL(debug) << "Third merge case";
+         merge_case = 3;
 
 	 // At least one of our trees is too small, and the other is of height less than or equal to 2*alpha
 
@@ -1066,20 +1174,23 @@ public:
         BOOST_LOG_TRIVIAL(warning) << "You have attempted to merge two trees that should not be merged.";
      }
     
-     /**map<kmer_t, unsigned> testheights;
+     map<kmer_t, unsigned> testheights;
      vector<kmer_t> testkmers;
      unsigned testheight = getTreeHeight(u, testheights, testkmers);
 
      if (testheight > 3*this->alpha + 1) {
-        BOOST_LOG_TRIVIAL(warning) << "Tree too big after merging!";
+        BOOST_LOG_TRIVIAL(warning) << "u's tree too big after merging! u's tree was found to have height "
+           << testheight << " and the maximum is " << 3*this->alpha << ". Merge case " << merge_case
+           << ". It began with height " << height_u;
      }
 
      testheight = getTreeHeight(v, testheights, testkmers);
 
      if (testheight > 3*this->alpha + 1) {
-        BOOST_LOG_TRIVIAL(warning) << "Tree too big after merging!";
+        BOOST_LOG_TRIVIAL(warning) << "v's tree too big after merging! A tree was found to have height "
+           << testheight << " and the maximum is " << 3*this->alpha << ". Merge case " << merge_case
+           << ". It began with height " << height_v;
      }
-     */
 
      return true;
 
